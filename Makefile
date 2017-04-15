@@ -1,8 +1,7 @@
 PROJECT=kry
 CXX=g++
 CXXFLAGS=-std=c++14 -Wall -Wextra
-LXXFLAGS=-lboost_system -lpthread -ldl
-# -lssl -lcrypto -lpthread
+LXXFLAGS=-lboost_system -lpthread -ldl -lssl -lcrypto
 
 BUILD_DIR=build
 
@@ -23,7 +22,7 @@ build_dir:
 	$(MKDIR) $(BUILD_DIR)
 
 build_step: $(OBJECTS)
-	$(CXX) $(CXXFLAGS) -o $(PROJECT) $^ /home/marek/Downloads/openssl/libssl.a /home/marek/Downloads/openssl/libcrypto.a $(LXXFLAGS)
+	$(CXX) $(CXXFLAGS) -o $(PROJECT) $^ $(LXXFLAGS)
 
 $(BUILD_DIR)/%.o: src/%.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<

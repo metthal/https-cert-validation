@@ -25,9 +25,7 @@ int main()
 
 	auto certVerifier = std::make_unique<MyCertVerifier>();
 
-	//for (std::size_t i = 0; i < 100; ++i)
-	for (std::size_t i = 18; i < 19; ++i)
-	//for (std::size_t i = 0; i < 1; ++i)
+	for (std::size_t i = 0; i < 100; ++i)
 	{
 		std::ostringstream urlWriter;
 		urlWriter << std::setw(2) << std::setfill('0') << i << ".minotaur.fi.muni.cz";
@@ -39,7 +37,7 @@ int main()
 		{
 			SslSocket<SslMethod::SSLv23_TLSv1x> sock(url, 443);
 			sock.useTrustStore("/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem");
-			sock.useTrustStore("/home/marek/school/KRY/https/crocs-ca.pem");
+			sock.useTrustStore("crocs-ca.pem");
 			sock.setCertificateVerifier(certVerifier.get());
 			sock.connect();
 		}
