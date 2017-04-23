@@ -15,6 +15,7 @@ protected:
 		std::cout << "\t\tSubject: " << cert.getSubjectName() << std::endl;
 		std::cout << "\t\tIssuer: " << cert.getIssuerName() << std::endl;
 		std::cout << "\t\tSerial number: " << cert.getSerialNumber() << std::endl;
+		std::cout << "\t\tCRL Distribution Point: " << cert.getCrlDistributionPoint() << std::endl;
 		std::cout << "\t\tError: " << error.message << std::endl;
 		return true;
 	}

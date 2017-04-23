@@ -2,11 +2,12 @@
 #include <vector>
 
 #include <openssl/pem.h>
+#include <openssl/x509v3.h>
 
 #include "certificate.h"
 #include "utils.h"
 
-Certificate::Certificate() :  _subjectName(), _issuerName(), _subjectEntries(), _issuerEntries(), _serialNumber()
+Certificate::Certificate() : _subjectName(), _issuerName(), _subjectEntries(), _issuerEntries(), _serialNumber(), _crlDistributionPoint(), _pem()
 {
 }
 
@@ -42,6 +43,11 @@ const std::string& Certificate::getSerialNumber() const
 	return _serialNumber;
 }
 
+const std::string& Certificate::getCrlDistributionPoint() const
+{
+	return _crlDistributionPoint;
+}
+
 void Certificate::load(X509* impl)
 {
 	if (auto subjectName = X509_get_subject_name(impl))
@@ -63,13 +69,31 @@ void Certificate::load(X509* impl)
 
 	auto pemWriter = makeUnique(BIO_new(BIO_s_mem()), &BIO_free);
 	PEM_write_bio_X509(pemWriter.get(), impl);
-
-	_pem.clear();
 	int bytesRead;
 	std::vector<char> pemReader(1024);
 	while ((bytesRead = BIO_gets(pemWriter.get(), pemReader.data(), pemReader.size())) > 0)
 	{
 		_pem += std::string{pemReader.begin(), pemReader.begin() + bytesRead};
+	}
+
+	if (auto crlDistPoints = impl->crldp)
+	{
+		for (int i = 0; i < sk_DIST_POINT_num(crlDistPoints) && _crlDistributionPoint.empty(); ++i)
+		{
+			auto distPoint = sk_DIST_POINT_value(crlDistPoints, i);
+			if (distPoint->distpoint->type != 0)
+				continue;
+
+			auto names = distPoint->distpoint->name.fullname;
+			for (int j = 0; j < sk_GENERAL_NAME_num(names) && _crlDistributionPoint.empty(); ++j)
+			{
+				auto name = sk_GENERAL_NAME_value(names, j);
+				if (name->type != GEN_URI)
+					continue;
+
+				_crlDistributionPoint = std::string(name->d.ia5->data, name->d.ia5->data + name->d.ia5->length);
+			}
+		}
 	}
 }
 

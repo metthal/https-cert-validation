@@ -18,6 +18,7 @@ public:
 	std::string getSubjectEntry(const std::string& key);
 	std::string getIssuerEntry(const std::string& key);
 	const std::string& getSerialNumber() const;
+	const std::string& getCrlDistributionPoint() const;
 
 	void saveToFile(const std::string& filePath) const;
 
@@ -32,5 +33,6 @@ private:
 	std::map<std::string, std::string> _subjectEntries;
 	std::map<std::string, std::string> _issuerEntries;
 	std::string _serialNumber;
+	std::string _crlDistributionPoint;
 	std::string _pem;
 };
