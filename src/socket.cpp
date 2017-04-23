@@ -12,6 +12,8 @@ void Socket::connect()
 
 	if (errorCode)
 		throw UnableToConnectError();
+
+	onConnect();
 }
 
 void Socket::onConnect()

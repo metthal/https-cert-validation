@@ -40,8 +40,6 @@ void SslSocket<Method>::setCertificateVerifier(BaseCertificateVerifier* verifier
 template <SslMethod Method>
 void SslSocket<Method>::onConnect()
 {
-	connect();
-
 	_impl.reset(SSL_new(_implTemplate.get()));
 	SSL_set_tlsext_host_name(_impl.get(), _hostname.c_str());
 	SSL_set_fd(_impl.get(), _socket.native_handle());
