@@ -17,7 +17,8 @@ public:
 enum class VerificationResult
 {
 	Ok,
-	CertificateExpired
+	CertificateExpired,
+	Unknown
 };
 
 struct VerificationError
@@ -31,6 +32,9 @@ struct VerificationError
 				break;
 			case X509_V_ERR_CERT_HAS_EXPIRED:
 				result = VerificationResult::CertificateExpired;
+				break;
+			default:
+				result = VerificationResult::Unknown;
 				break;
 			//default:
 			//	throw UnknownVerificationResultError(x509error);

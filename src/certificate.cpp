@@ -1,6 +1,16 @@
-#include "certificate.h"
+#include <fstream>
+#include <vector>
 
-Certificate::Certificate(X509* impl) : _subjectEntries(), _issuerEntries()
+#include <openssl/pem.h>
+
+#include "certificate.h"
+#include "utils.h"
+
+Certificate::Certificate() :  _subjectName(), _issuerName(), _subjectEntries(), _issuerEntries(), _serialNumber()
+{
+}
+
+Certificate::Certificate(X509* impl) : Certificate()
 {
 	load(impl);
 }
@@ -27,6 +37,11 @@ std::string Certificate::getIssuerEntry(const std::string& key)
 	return itr != _issuerEntries.end() ? itr->second : std::string{};
 }
 
+const std::string& Certificate::getSerialNumber() const
+{
+	return _serialNumber;
+}
+
 void Certificate::load(X509* impl)
 {
 	if (auto subjectName = X509_get_subject_name(impl))
@@ -39,6 +54,22 @@ void Certificate::load(X509* impl)
 	{
 		_issuerName = CryptoStringType(X509_NAME_oneline(issuerName, nullptr, 0), &CRYPTO_free).get();
 		_issuerEntries = loadNameEntries(issuerName);
+	}
+
+	if (auto sn = X509_get_serialNumber(impl))
+	{
+		_serialNumber = bytesToHexString(sn->data, sn->length);
+	}
+
+	auto pemWriter = makeUnique(BIO_new(BIO_s_mem()), &BIO_free);
+	PEM_write_bio_X509(pemWriter.get(), impl);
+
+	_pem.clear();
+	int bytesRead;
+	std::vector<char> pemReader(1024);
+	while ((bytesRead = BIO_gets(pemWriter.get(), pemReader.data(), pemReader.size())) > 0)
+	{
+		_pem += std::string{pemReader.begin(), pemReader.begin() + bytesRead};
 	}
 }
 
@@ -57,4 +88,13 @@ std::map<std::string, std::string> Certificate::loadNameEntries(X509_NAME* name)
 	}
 
 	return result;
+}
+
+void Certificate::saveToFile(const std::string& filePath) const
+{
+	std::ofstream file(filePath, std::ios::out | std::ios::trunc);
+	if (!file.is_open())
+		return;
+
+	file << _pem;
 }

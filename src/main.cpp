@@ -14,6 +14,7 @@ protected:
 		std::cout << "\t\tPreverification: " << std::boolalpha << preverification << std::endl;
 		std::cout << "\t\tSubject: " << cert.getSubjectName() << std::endl;
 		std::cout << "\t\tIssuer: " << cert.getIssuerName() << std::endl;
+		std::cout << "\t\tSerial number: " << cert.getSerialNumber() << std::endl;
 		std::cout << "\t\tError: " << error.message << std::endl;
 		return true;
 	}
@@ -38,8 +39,11 @@ int main()
 			SslSocket<SslMethod::SSLv23_TLSv1x> sock(url, 443);
 			sock.useTrustStore("/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem");
 			sock.useTrustStore("crocs-ca.pem");
+			sock.enableClrVerification();
 			sock.setCertificateVerifier(certVerifier.get());
 			sock.connect();
+
+			sock.getPeerCertificate().saveToFile("certs/" + url + ".pem");
 		}
 		catch (const SslHandshakeError& error)
 		{
