@@ -1,7 +1,15 @@
 #include <iomanip>
 #include <sstream>
 
+#include <boost/algorithm/string.hpp>
+
 #include "utils.h"
+
+std::string trim(std::string str)
+{
+	boost::trim(str);
+	return str;
+}
 
 std::string bytesToHexString(const std::uint8_t* data, std::size_t size)
 {

@@ -7,8 +7,11 @@
 template <SslMethod Method>
 SslSocket<Method>::SslSocket(const std::string& hostname, std::uint16_t port) : Socket(hostname, port),
 	_implTemplate(SSL_CTX_new(SslMethodTraits<Method>::initFn()), &SSL_CTX_free),
-	_impl(nullptr, &SSL_free), _verifier(nullptr), _peerCert()
+	_impl(nullptr, &SSL_free),
+	_trustStore(X509_STORE_new()), // SSL_CTX becomes owner of this pointer.
+	_peerCert()
 {
+	SSL_CTX_set_cert_store(_implTemplate.get(), _trustStore);
 }
 
 template <SslMethod Method>
@@ -20,11 +23,11 @@ const Certificate& SslSocket<Method>::getPeerCertificate() const
 template <SslMethod Method>
 void SslSocket<Method>::useTrustStore(const std::string& store)
 {
-	SSL_CTX_load_verify_locations(_implTemplate.get(), store.c_str(), nullptr);
+	X509_STORE_load_locations(_trustStore, store.c_str(), nullptr);
 }
 
 template <SslMethod Method>
-void SslSocket<Method>::enableClrVerification()
+void SslSocket<Method>::enableCrlVerification()
 {
 	auto verifyCrlParam = makeUnique(X509_VERIFY_PARAM_new(), &X509_VERIFY_PARAM_free);
 	X509_VERIFY_PARAM_set_flags(verifyCrlParam.get(), X509_V_FLAG_CRL_CHECK);
@@ -34,7 +37,8 @@ void SslSocket<Method>::enableClrVerification()
 template <SslMethod Method>
 void SslSocket<Method>::setCertificateVerifier(BaseCertificateVerifier* verifier)
 {
-	_verifier = verifier;
+	SSL_CTX_set_verify(_implTemplate.get(), SSL_VERIFY_PEER, verifier->getVerifyCallbackPtr());
+	_trustStore->lookup_crls = verifier->getCrlLookupCallbackPtr();
 }
 
 template <SslMethod Method>
@@ -43,9 +47,6 @@ void SslSocket<Method>::onConnect()
 	_impl.reset(SSL_new(_implTemplate.get()));
 	SSL_set_tlsext_host_name(_impl.get(), _hostname.c_str());
 	SSL_set_fd(_impl.get(), _socket.native_handle());
-
-	if (_verifier)
-		SSL_set_verify(_impl.get(), SSL_VERIFY_PEER, _verifier->getCallbackPtr());
 
 	auto err = SSL_connect(_impl.get());
 	if (err <= 0)
@@ -57,11 +58,11 @@ void SslSocket<Method>::onConnect()
 		throw SslHandshakeError();
 	}
 
-	auto peerCert = SSL_get_peer_certificate(_impl.get());
+	auto peerCert = makeUnique(SSL_get_peer_certificate(_impl.get()), &X509_free);
 	if (!peerCert)
 		throw SslHandshakeError();
 
-	_peerCert = peerCert;
+	_peerCert = peerCert.get();
 
 	std::cout << "\tSSL version: " << SSL_get_version(_impl.get()) << std::endl;
 	std::cout << "\tSSL cipher: " << SSL_get_cipher(_impl.get()) << std::endl;

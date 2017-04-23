@@ -44,7 +44,7 @@ public:
 	const Certificate& getPeerCertificate() const;
 
 	void useTrustStore(const std::string& store);
-	void enableClrVerification();
+	void enableCrlVerification();
 	void setCertificateVerifier(BaseCertificateVerifier* verifier);
 
 protected:
@@ -53,6 +53,6 @@ protected:
 private:
 	SslContextType _implTemplate;
 	SslType _impl;
-	BaseCertificateVerifier* _verifier;
+	X509_STORE* _trustStore;
 	Certificate _peerCert;
 };

@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 
+std::string trim(std::string str);
 std::string bytesToHexString(const std::uint8_t* data, std::size_t size);
 
 template <typename T, typename Deleter>

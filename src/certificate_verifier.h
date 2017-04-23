@@ -2,11 +2,16 @@
 
 #include <functional>
 
+#include <openssl/bio.h>
+#include <openssl/pem.h>
 #include <openssl/x509.h>
 
 #include "certificate.h"
 #include "error.h"
 #include "fn_ptr.h"
+#include "http_client.h"
+#include "socket.h"
+#include "uri_parser.h"
 
 class UnknownVerificationResultError : public Error
 {
@@ -51,6 +56,7 @@ class BaseCertificateVerifier
 {
 public:
 	using VerifyFnPtr = decltype(X509_STORE::verify_cb);
+	using CrlLookupFnPtr = decltype(X509_STORE::lookup_crls);
 
 	virtual ~BaseCertificateVerifier() = default;
 
@@ -60,21 +66,59 @@ public:
 		return verifier->verify(preverifyOk == 1, cert, VerificationError{X509_STORE_CTX_get_error(certStore)}) ? 1 : 0;
 	}
 
-	virtual VerifyFnPtr getCallbackPtr() = 0;
+	static STACK_OF(X509_CRL)* crlLookupCallback(BaseCertificateVerifier* verifier, X509_STORE_CTX* certStore, X509_NAME* name)
+	{
+		Certificate cert(certStore->current_cert);
+
+		STACK_OF(X509_CRL)* result = sk_X509_CRL_new_null();
+		if (!cert.getCrlDistributionPoint().empty())
+		{
+			UriParser uriPraser(cert.getCrlDistributionPoint());
+			HttpClient<Socket> crlDownloader(uriPraser.getHostname(), 80);
+			crlDownloader.connect();
+			auto crlPem = crlDownloader.request(uriPraser.getResource());
+
+			X509_CRL* crl = nullptr;
+			auto bio = makeUnique(BIO_new_mem_buf(crlPem.data(), crlPem.length() + 1), &BIO_free);
+			if ((crl = PEM_read_bio_X509_CRL(bio.get(), nullptr, nullptr, nullptr)) == nullptr)
+			{
+				bio = makeUnique(BIO_new_mem_buf(crlPem.data(), crlPem.length() + 1), &BIO_free);
+				crl = d2i_X509_CRL_bio(bio.get(), nullptr);
+			}
+
+			if (crl != nullptr)
+				sk_X509_CRL_push(result, crl);
+		}
+
+		return result;
+	}
+
+	virtual VerifyFnPtr getVerifyCallbackPtr() = 0;
+	virtual CrlLookupFnPtr getCrlLookupCallbackPtr() = 0;
 
 protected:
 	virtual bool verify(bool preverification, const Certificate& cert, const VerificationError& error) = 0;
+
+private:
 };
 
 template <typename Tag>
 class CertificateVerifier : public BaseCertificateVerifier
 {
 public:
-	VerifyFnPtr getCallbackPtr() override final
+	VerifyFnPtr getVerifyCallbackPtr() override final
 	{
 		using namespace std::placeholders;
-		
+
 		std::function<int(int, X509_STORE_CTX*)> callback = std::bind(&verificationCallback, this, _1, _2);
-		return makeFnPtr<Tag>(callback).pointer();
+		return makeFnPtr<0, Tag>(callback).pointer();
+	}
+
+	CrlLookupFnPtr getCrlLookupCallbackPtr() override final
+	{
+		using namespace std::placeholders;
+
+		std::function<STACK_OF(X509_CRL)*(X509_STORE_CTX*, X509_NAME*)> callback = std::bind(&crlLookupCallback, this, _1, _2);
+		return makeFnPtr<1, Tag>(callback).pointer();
 	}
 };

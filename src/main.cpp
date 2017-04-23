@@ -2,6 +2,7 @@
 #include <iostream>
 
 #include "certificate_verifier.h"
+#include "http_client.h"
 #include "ssl_socket.h"
 #include "ssl_suite.h"
 
@@ -40,7 +41,7 @@ int main()
 			SslSocket<SslMethod::SSLv23_TLSv1x> sock(url, 443);
 			sock.useTrustStore("/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem");
 			sock.useTrustStore("crocs-ca.pem");
-			sock.enableClrVerification();
+			sock.enableCrlVerification();
 			sock.setCertificateVerifier(certVerifier.get());
 			sock.connect();
 
