@@ -23,6 +23,15 @@ enum class VerificationResult
 {
 	Ok,
 	CertificateExpired,
+	Revoked,
+	UnavailableCRL,
+	IssuerCertificateMissing,
+	UnableToVerifyServerCertificate,
+	TopmostIsSelfSigned,
+	InvalidPurpose,
+	InvalidCA,
+	SelfSignedInChain,
+	SubtreeViolation,
 	Unknown
 };
 
@@ -38,11 +47,35 @@ struct VerificationError
 			case X509_V_ERR_CERT_HAS_EXPIRED:
 				result = VerificationResult::CertificateExpired;
 				break;
-			default:
-				result = VerificationResult::Unknown;
+			case X509_V_ERR_CERT_REVOKED:
+				result = VerificationResult::Revoked;
 				break;
-			//default:
-			//	throw UnknownVerificationResultError(x509error);
+			case X509_V_ERR_UNABLE_TO_GET_CRL:
+				result = VerificationResult::UnavailableCRL;
+				break;
+			case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY:
+				result = VerificationResult::IssuerCertificateMissing;
+				break;
+			case X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE:
+				result = VerificationResult::UnableToVerifyServerCertificate;
+				break;
+			case X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT:
+				result = VerificationResult::TopmostIsSelfSigned;
+				break;
+			case X509_V_ERR_INVALID_PURPOSE:
+				result = VerificationResult::InvalidPurpose;
+				break;
+			case X509_V_ERR_INVALID_CA:
+				result = VerificationResult::InvalidCA;
+				break;
+			case X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN:
+				result = VerificationResult::SelfSignedInChain;
+				break;
+			case X509_V_ERR_PERMITTED_VIOLATION:
+				result = VerificationResult::SubtreeViolation;
+				break;
+			default:
+				throw UnknownVerificationResultError(x509error);
 		}
 
 		message = X509_verify_cert_error_string(x509error);
@@ -63,16 +96,27 @@ public:
 	static int verificationCallback(BaseCertificateVerifier* verifier, int preverifyOk, X509_STORE_CTX* certStore)
 	{
 		Certificate cert(certStore->current_cert);
-		return verifier->verify(preverifyOk == 1, cert, VerificationError{X509_STORE_CTX_get_error(certStore)}) ? 1 : 0;
+		VerificationError verificationError(X509_STORE_CTX_get_error(certStore));
+		certStore->error = X509_V_OK;
+
+		if (verificationError.result == VerificationResult::UnavailableCRL && cert.getCrlDistributionPoint().empty())
+		{
+			certStore->error = X509_V_OK;
+			return 1;
+		}
+
+		return verifier->verify(preverifyOk == 1, cert, verificationError) ? 1 : 0;
 	}
 
 	static STACK_OF(X509_CRL)* crlLookupCallback(BaseCertificateVerifier* verifier, X509_STORE_CTX* certStore, X509_NAME* name)
 	{
 		Certificate cert(certStore->current_cert);
 
-		STACK_OF(X509_CRL)* result = sk_X509_CRL_new_null();
+		STACK_OF(X509_CRL)* result = nullptr;
 		if (!cert.getCrlDistributionPoint().empty())
 		{
+			result = sk_X509_CRL_new_null();
+
 			UriParser uriPraser(cert.getCrlDistributionPoint());
 			HttpClient<Socket> crlDownloader(uriPraser.getHostname(), 80);
 			crlDownloader.connect();

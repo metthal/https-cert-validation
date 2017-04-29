@@ -39,6 +39,7 @@ int main()
 		try
 		{
 			SslSocket<SslMethod::SSLv23_TLSv1x> sock(url, 443);
+			//sock.useDefaultTrustStore();
 			sock.useTrustStore("/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem");
 			sock.useTrustStore("crocs-ca.pem");
 			sock.enableCrlVerification();

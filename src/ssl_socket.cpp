@@ -8,10 +8,9 @@ template <SslMethod Method>
 SslSocket<Method>::SslSocket(const std::string& hostname, std::uint16_t port) : Socket(hostname, port),
 	_implTemplate(SSL_CTX_new(SslMethodTraits<Method>::initFn()), &SSL_CTX_free),
 	_impl(nullptr, &SSL_free),
-	_trustStore(X509_STORE_new()), // SSL_CTX becomes owner of this pointer.
 	_peerCert()
 {
-	SSL_CTX_set_cert_store(_implTemplate.get(), _trustStore);
+	//SSL_CTX_set_cert_store(_implTemplate.get(), _trustStore);
 }
 
 template <SslMethod Method>
@@ -21,9 +20,15 @@ const Certificate& SslSocket<Method>::getPeerCertificate() const
 }
 
 template <SslMethod Method>
+void SslSocket<Method>::useDefaultTrustStore()
+{
+	SSL_CTX_set_default_verify_paths(_implTemplate.get());
+}
+
+template <SslMethod Method>
 void SslSocket<Method>::useTrustStore(const std::string& store)
 {
-	X509_STORE_load_locations(_trustStore, store.c_str(), nullptr);
+	SSL_CTX_load_verify_locations(_implTemplate.get(), store.c_str(), nullptr);
 }
 
 template <SslMethod Method>
@@ -38,7 +43,7 @@ template <SslMethod Method>
 void SslSocket<Method>::setCertificateVerifier(BaseCertificateVerifier* verifier)
 {
 	SSL_CTX_set_verify(_implTemplate.get(), SSL_VERIFY_PEER, verifier->getVerifyCallbackPtr());
-	_trustStore->lookup_crls = verifier->getCrlLookupCallbackPtr();
+	_implTemplate->cert_store->lookup_crls = verifier->getCrlLookupCallbackPtr();
 }
 
 template <SslMethod Method>
