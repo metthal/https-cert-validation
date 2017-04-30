@@ -26,13 +26,13 @@ const std::string& Certificate::getIssuerName() const
 	return _issuerName;
 }
 
-std::string Certificate::getSubjectEntry(const std::string& key)
+std::string Certificate::getSubjectEntry(const std::string& key) const
 {
 	auto itr = _subjectEntries.find(key);
 	return itr != _subjectEntries.end() ? itr->second : std::string{};
 }
 
-std::string Certificate::getIssuerEntry(const std::string& key)
+std::string Certificate::getIssuerEntry(const std::string& key) const
 {
 	auto itr = _issuerEntries.find(key);
 	return itr != _issuerEntries.end() ? itr->second : std::string{};
@@ -121,4 +121,14 @@ void Certificate::saveToFile(const std::string& filePath) const
 		return;
 
 	file << _pem;
+}
+
+bool Certificate::operator==(const Certificate& cert) const
+{
+	return _issuerName == cert._issuerName && _serialNumber == cert._serialNumber;
+}
+
+bool Certificate::operator!=(const Certificate& cert) const
+{
+	return !(*this == cert);
 }

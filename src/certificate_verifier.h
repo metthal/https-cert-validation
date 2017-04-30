@@ -4,6 +4,7 @@
 
 #include <openssl/bio.h>
 #include <openssl/pem.h>
+#include <openssl/ssl.h>
 #include <openssl/x509.h>
 
 #include "certificate.h"
@@ -97,7 +98,6 @@ public:
 	{
 		Certificate cert(certStore->current_cert);
 		VerificationError verificationError(X509_STORE_CTX_get_error(certStore));
-		certStore->error = X509_V_OK;
 
 		if (verificationError.result == VerificationResult::UnavailableCRL && cert.getCrlDistributionPoint().empty())
 		{
@@ -108,7 +108,7 @@ public:
 		return verifier->verify(preverifyOk == 1, cert, verificationError) ? 1 : 0;
 	}
 
-	static STACK_OF(X509_CRL)* crlLookupCallback(BaseCertificateVerifier* verifier, X509_STORE_CTX* certStore, X509_NAME* name)
+	static STACK_OF(X509_CRL)* crlLookupCallback(BaseCertificateVerifier* /*verifier*/, X509_STORE_CTX* certStore, X509_NAME* /*name*/)
 	{
 		Certificate cert(certStore->current_cert);
 
@@ -142,8 +142,6 @@ public:
 
 protected:
 	virtual bool verify(bool preverification, const Certificate& cert, const VerificationError& error) = 0;
-
-private:
 };
 
 template <typename Tag>

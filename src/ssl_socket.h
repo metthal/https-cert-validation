@@ -42,6 +42,7 @@ public:
 	SslSocket(const std::string& hostname, std::uint16_t port);
 
 	const Certificate& getPeerCertificate() const;
+	const std::vector<Certificate>& getPeerCertificateChain() const;
 
 	void useDefaultTrustStore();
 	void useTrustStore(const std::string& store);
@@ -54,5 +55,5 @@ protected:
 private:
 	SslContextType _implTemplate;
 	SslType _impl;
-	Certificate _peerCert;
+	std::vector<Certificate> _certChain;
 };

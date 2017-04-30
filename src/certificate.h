@@ -12,15 +12,23 @@ class Certificate
 public:
 	Certificate();
 	Certificate(X509* impl);
+	Certificate(const Certificate&) = default;
+	Certificate(Certificate&&) = default;
+
+	Certificate& operator=(const Certificate&) = default;
+	Certificate& operator=(Certificate&&) = default;
 
 	const std::string& getSubjectName() const;
 	const std::string& getIssuerName() const;
-	std::string getSubjectEntry(const std::string& key);
-	std::string getIssuerEntry(const std::string& key);
+	std::string getSubjectEntry(const std::string& key) const;
+	std::string getIssuerEntry(const std::string& key) const;
 	const std::string& getSerialNumber() const;
 	const std::string& getCrlDistributionPoint() const;
 
 	void saveToFile(const std::string& filePath) const;
+
+	bool operator==(const Certificate& cert) const;
+	bool operator!=(const Certificate& cert) const;
 
 private:
 	using CryptoStringType = std::unique_ptr<char, decltype(&CRYPTO_free)>;

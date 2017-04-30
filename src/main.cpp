@@ -14,6 +14,7 @@ protected:
 		std::cout << "\tVerification started" << std::endl;
 		std::cout << "\t\tPreverification: " << std::boolalpha << preverification << std::endl;
 		std::cout << "\t\tSubject: " << cert.getSubjectName() << std::endl;
+		std::cout << "\t\tSubject CN: " << cert.getSubjectEntry("CN") << std::endl;
 		std::cout << "\t\tIssuer: " << cert.getIssuerName() << std::endl;
 		std::cout << "\t\tSerial number: " << cert.getSerialNumber() << std::endl;
 		std::cout << "\t\tCRL Distribution Point: " << cert.getCrlDistributionPoint() << std::endl;
@@ -47,6 +48,8 @@ int main()
 			sock.connect();
 
 			sock.getPeerCertificate().saveToFile("certs/" + url + ".pem");
+			for (const auto& c : sock.getPeerCertificateChain())
+				std::cout << c.getSubjectName() << std::endl;
 		}
 		catch (const SslHandshakeError& error)
 		{
