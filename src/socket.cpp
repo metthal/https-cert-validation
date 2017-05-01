@@ -1,7 +1,7 @@
 #include "socket.h"
 #include "utils.h"
 
-Socket::Socket(const std::string& hostname, std::uint16_t port) : _hostname(hostname), _port(port), _ioService(), _socket(_ioService)
+Socket::Socket(const std::string& hostname, std::uint16_t port) : _hostname(hostname), _port(port), _ioService(), _socket(_ioService), _resolvedEndpoint()
 {
 }
 
@@ -13,13 +13,23 @@ const std::string& Socket::getHostname() const
 void Socket::connect()
 {
 	boost::system::error_code errorCode;
-	auto endpoint = resolveHostname();
-	_socket.connect(endpoint, errorCode);
+	if (!_resolvedEndpoint)
+		_resolvedEndpoint = resolveHostname();
+	_socket.connect(_resolvedEndpoint.value(), errorCode);
 
 	if (errorCode)
 		throw UnableToConnectError();
 
 	onConnect();
+}
+
+void Socket::reconnect()
+{
+	_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_type::shutdown_both);
+	_socket.close();
+
+	_socket = boost::asio::ip::tcp::socket(_ioService);
+	connect();
 }
 
 void Socket::send(const Span<const std::uint8_t>& data)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <boost/asio.hpp>
+#include <boost/optional.hpp>
 #include <openssl/bio.h>
 
 #include "error.h"
@@ -39,6 +40,7 @@ public:
 	const std::string& getHostname() const;
 
 	void connect();
+	void reconnect();
 	void send(const Span<const std::uint8_t>& data);
 	std::vector<std::uint8_t> receive(std::size_t toRead);
 
@@ -52,4 +54,5 @@ protected:
 	std::uint16_t _port;
 	boost::asio::io_service _ioService;
 	boost::asio::ip::tcp::socket _socket;
+	boost::optional<boost::asio::ip::tcp::endpoint> _resolvedEndpoint;
 };
