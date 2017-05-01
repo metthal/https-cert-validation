@@ -10,7 +10,7 @@
 class MyCertVerifier : public CertificateVerifier<MyCertVerifier>
 {
 protected:
-	virtual bool verify(bool preverification, const Certificate& cert, const VerificationError& error) override
+	virtual bool onVerify(bool preverification, const Certificate& cert, const VerificationError& error) override
 	{
 		std::cout << "\tVerification started" << std::endl;
 		std::cout << "\t\tPreverification: " << std::boolalpha << preverification << std::endl;
@@ -40,17 +40,16 @@ int main()
 
 		try
 		{
-			SslSocket<SslMethod::SSLv23_TLSv1x> sock(url, 443);
+			SslSocket sock(url, 443);
 			//sock.useDefaultTrustStore();
 			sock.useTrustStore("/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem");
 			sock.useTrustStore("crocs-ca.pem");
 			sock.enableCrlVerification();
-			sock.setCertificateVerifier(certVerifier.get());
 			sock.connect();
 
-			sock.getPeerCertificate().saveToFile("certs/" + url + ".pem");
+			sock.getServerCertificate().saveToFile("certs/" + url + ".pem");
 
-			const auto& chain = sock.getPeerCertificateChain();
+			const auto& chain = sock.getCertificateChain();
 			for (auto itr = chain.begin(), end = chain.end(); itr != end; ++itr)
 			{
 				if (itr + 1 == end)
@@ -64,6 +63,8 @@ int main()
 					std::cout << "OCSP: " << cert.getSubjectName() << " " << std::boolalpha << ocsp.isRevoked(cert, issuer) << std::endl;
 				}
 			}
+
+			certVerifier->verify(&sock);
 		}
 		catch (const SslHandshakeError& error)
 		{
