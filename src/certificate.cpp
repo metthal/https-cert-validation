@@ -53,6 +53,21 @@ const std::string& Certificate::getOcspResponder() const
 	return _ocspResponder;
 }
 
+const std::string& Certificate::getPublicKeyAlgorithm() const
+{
+	return _publicKeyAlgorithm;
+}
+
+std::size_t Certificate::getKeyBits() const
+{
+	return _keyBits;
+}
+
+const std::string& Certificate::getSignatureAlgorithm() const
+{
+	return _signatureAlgorithm;
+}
+
 const std::string& Certificate::getPEM() const
 {
 	return _pem;
@@ -124,6 +139,14 @@ void Certificate::load(X509* impl)
 		if (ocspCount > 0)
 			_ocspResponder = sk_OPENSSL_STRING_value(ocspInfo.get(), 0);
 	}
+
+	if (auto pubkey = X509_get_pubkey(impl))
+	{
+		_keyBits = EVP_PKEY_bits(pubkey);
+		_publicKeyAlgorithm = OBJ_nid2ln(OBJ_obj2nid(impl->cert_info->key->algor->algorithm));
+	}
+
+	_signatureAlgorithm = OBJ_nid2ln(OBJ_obj2nid(impl->sig_alg->algorithm));
 }
 
 std::map<std::string, std::string> Certificate::loadNameEntries(X509_NAME* name)

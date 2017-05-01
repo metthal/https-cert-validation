@@ -7,6 +7,9 @@ bool KryCertficateVerifier::onVerify(bool preverification, const Certificate& ce
 	std::cout << "\t\tSubject: " << cert.getSubjectName() << std::endl;
 	std::cout << "\t\tSubject CN: " << cert.getSubjectEntry("CN") << std::endl;
 	std::cout << "\t\tIssuer: " << cert.getIssuerName() << std::endl;
+	std::cout << "\t\tPublic Key Algorithm: " << cert.getPublicKeyAlgorithm() << std::endl;
+	std::cout << "\t\tKey Size In Bits: " << cert.getKeyBits() << std::endl;
+	std::cout << "\t\tSignature Algorithm: " << cert.getSignatureAlgorithm() << std::endl;
 	std::cout << "\t\tSerial number: " << cert.getSerialNumber() << std::endl;
 	std::cout << "\t\tCRL Distribution Point: " << cert.getCrlDistributionPoint() << std::endl;
 	std::cout << "\t\tOCSP Responder Address: " << cert.getOcspResponder() << std::endl;

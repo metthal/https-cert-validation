@@ -25,6 +25,9 @@ public:
 	const std::string& getSerialNumber() const;
 	const std::string& getCrlDistributionPoint() const;
 	const std::string& getOcspResponder() const;
+	const std::string& getPublicKeyAlgorithm() const;
+	std::size_t getKeyBits() const;
+	const std::string& getSignatureAlgorithm() const;
 	const std::string& getPEM() const;
 
 	X509* getX509() const;
@@ -47,5 +50,8 @@ private:
 	std::string _serialNumber;
 	std::string _crlDistributionPoint;
 	std::string _ocspResponder;
+	std::string _publicKeyAlgorithm;
+	std::size_t _keyBits;
+	std::string _signatureAlgorithm;
 	std::string _pem;
 };
