@@ -3,6 +3,7 @@
 
 #include "certificate_verifier.h"
 #include "http_client.h"
+#include "ocsp_client.h"
 #include "ssl_socket.h"
 #include "ssl_suite.h"
 
@@ -48,8 +49,21 @@ int main()
 			sock.connect();
 
 			sock.getPeerCertificate().saveToFile("certs/" + url + ".pem");
-			for (const auto& c : sock.getPeerCertificateChain())
-				std::cout << c.getSubjectName() << std::endl;
+
+			const auto& chain = sock.getPeerCertificateChain();
+			for (auto itr = chain.begin(), end = chain.end(); itr != end; ++itr)
+			{
+				if (itr + 1 == end)
+					break;
+
+				const auto& cert = *itr;
+				const auto& issuer = *(itr + 1);
+				if (!cert.getOcspResponder().empty())
+				{
+					OcspClient ocsp;
+					std::cout << "OCSP: " << cert.getSubjectName() << " " << std::boolalpha << ocsp.isRevoked(cert, issuer) << std::endl;
+				}
+			}
 		}
 		catch (const SslHandshakeError& error)
 		{

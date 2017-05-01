@@ -1,4 +1,5 @@
 #include "socket.h"
+#include "utils.h"
 
 Socket::Socket(const std::string& hostname, std::uint16_t port) : _hostname(hostname), _port(port), _ioService(), _socket(_ioService)
 {

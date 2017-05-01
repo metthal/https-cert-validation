@@ -7,21 +7,34 @@
 template <SslMethod Method>
 SslSocket<Method>::SslSocket(const std::string& hostname, std::uint16_t port) : Socket(hostname, port),
 	_implTemplate(SSL_CTX_new(SslMethodTraits<Method>::initFn()), &SSL_CTX_free),
-	_impl(nullptr, &SSL_free),
-	_certChain()
+	_impl(nullptr, &SSL_free)
 {
 }
 
 template <SslMethod Method>
-const Certificate& SslSocket<Method>::getPeerCertificate() const
+Certificate SslSocket<Method>::getPeerCertificate() const
 {
-	return _certChain.front();
+	auto x509Peer = makeUnique(SSL_get_peer_certificate(_impl.get()), &X509_free);
+	return { x509Peer.get() };
 }
 
 template <SslMethod Method>
-const std::vector<Certificate>& SslSocket<Method>::getPeerCertificateChain() const
+std::vector<Certificate> SslSocket<Method>::getPeerCertificateChain() const
 {
-	return _certChain;
+	std::vector<Certificate> result;
+
+	auto x509Chain = SSL_get_peer_cert_chain(_impl.get());
+	if (x509Chain)
+	{
+		std::size_t certsCount = sk_X509_num(x509Chain);
+		for (std::size_t i = 0; i < certsCount; ++i)
+		{
+			auto x509 = sk_X509_value(x509Chain, i);
+			result.emplace_back(x509);
+		}
+	}
+
+	return result;
 }
 
 template <SslMethod Method>
@@ -71,20 +84,6 @@ void SslSocket<Method>::onConnect()
 	auto x509Peer = makeUnique(SSL_get_peer_certificate(_impl.get()), &X509_free);
 	if (!x509Peer)
 		throw SslHandshakeError();
-
-	auto x509Chain = SSL_get_peer_cert_chain(_impl.get());
-	if (x509Chain)
-	{
-		std::size_t certsCount = sk_X509_num(x509Chain);
-		for (std::size_t i = 0; i < certsCount; ++i)
-		{
-			auto x509 = sk_X509_value(x509Chain, i);
-			_certChain.emplace_back(x509);
-		}
-	}
-
-	std::cout << "\tSSL version: " << SSL_get_version(_impl.get()) << std::endl;
-	std::cout << "\tSSL cipher: " << SSL_get_cipher(_impl.get()) << std::endl;
 }
 
 template class SslSocket<SslMethod::SSLv23_TLSv1x>;

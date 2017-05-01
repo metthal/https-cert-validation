@@ -1,6 +1,7 @@
 #pragma once
 
 #include <boost/asio.hpp>
+#include <openssl/bio.h>
 
 #include "error.h"
 #include "span.h"
