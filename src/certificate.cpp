@@ -68,6 +68,11 @@ const std::string& Certificate::getSignatureAlgorithm() const
 	return _signatureAlgorithm;
 }
 
+const std::vector<std::string>& Certificate::getAlterantiveNames() const
+{
+	return _alternativeNames;
+}
+
 const std::string& Certificate::getPEM() const
 {
 	return _pem;
@@ -147,6 +152,21 @@ void Certificate::load(X509* impl)
 	}
 
 	_signatureAlgorithm = OBJ_nid2ln(OBJ_obj2nid(impl->sig_alg->algorithm));
+
+	// Inspired by `http://www.zedwood.com/article/c-openssl-parse-x509-certificate-pem`
+	if (auto names = reinterpret_cast<STACK_OF(GENERAL_NAME)*>(X509_get_ext_d2i(impl, NID_subject_alt_name, nullptr, nullptr)))
+	{
+		std::size_t nameCount = sk_GENERAL_NAME_num(names);
+		for (std::size_t i = 0; i < nameCount; ++i)
+		{
+			auto name = sk_GENERAL_NAME_value(names, i);
+			if (name->type == GEN_URI || name->type == GEN_DNS || name->type == GEN_EMAIL)
+			{
+				auto nameBuffer = name->d.uniformResourceIdentifier;
+				_alternativeNames.emplace_back(ASN1_STRING_data(nameBuffer), ASN1_STRING_data(nameBuffer) + ASN1_STRING_length(nameBuffer));
+			}
+		}
+	}
 }
 
 std::map<std::string, std::string> Certificate::loadNameEntries(X509_NAME* name)

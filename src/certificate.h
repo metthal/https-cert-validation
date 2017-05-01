@@ -3,6 +3,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <openssl/crypto.h>
 #include <openssl/x509.h>
@@ -28,6 +29,7 @@ public:
 	const std::string& getPublicKeyAlgorithm() const;
 	std::size_t getKeyBits() const;
 	const std::string& getSignatureAlgorithm() const;
+	const std::vector<std::string>& getAlterantiveNames() const;
 	const std::string& getPEM() const;
 
 	X509* getX509() const;
@@ -53,5 +55,6 @@ private:
 	std::string _publicKeyAlgorithm;
 	std::size_t _keyBits;
 	std::string _signatureAlgorithm;
+	std::vector<std::string> _alternativeNames;
 	std::string _pem;
 };
