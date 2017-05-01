@@ -48,6 +48,23 @@ const std::string& Certificate::getCrlDistributionPoint() const
 	return _crlDistributionPoint;
 }
 
+const std::string& Certificate::getOcspResponder() const
+{
+	return _ocspResponder;
+}
+
+const std::string& Certificate::getPEM() const
+{
+	return _pem;
+}
+
+X509* Certificate::getX509() const
+{
+	auto bio = makeUnique(BIO_new_mem_buf(_pem.c_str(), _pem.length()), &BIO_free);
+	auto result = PEM_read_bio_X509(bio.get(), nullptr, nullptr, nullptr);
+	return result;
+}
+
 void Certificate::load(X509* impl)
 {
 	if (auto subjectName = X509_get_subject_name(impl))
@@ -94,6 +111,18 @@ void Certificate::load(X509* impl)
 				_crlDistributionPoint = std::string(name->d.ia5->data, name->d.ia5->data + name->d.ia5->length);
 			}
 		}
+	}
+
+	auto ocspInfo = makeUnique(X509_get1_ocsp(impl),
+			[](STACK_OF(OPENSSL_STRING)* stack) {
+				// I don't know why but when using sk_OPENSSL_STRING_free, it leaks memory
+				X509_email_free(stack);
+			});
+	if (ocspInfo)
+	{
+		std::size_t ocspCount = sk_OPENSSL_STRING_num(ocspInfo.get());
+		if (ocspCount > 0)
+			_ocspResponder = sk_OPENSSL_STRING_value(ocspInfo.get(), 0);
 	}
 }
 

@@ -24,6 +24,10 @@ public:
 	std::string getIssuerEntry(const std::string& key) const;
 	const std::string& getSerialNumber() const;
 	const std::string& getCrlDistributionPoint() const;
+	const std::string& getOcspResponder() const;
+	const std::string& getPEM() const;
+
+	X509* getX509() const;
 
 	void saveToFile(const std::string& filePath) const;
 
@@ -42,5 +46,6 @@ private:
 	std::map<std::string, std::string> _issuerEntries;
 	std::string _serialNumber;
 	std::string _crlDistributionPoint;
+	std::string _ocspResponder;
 	std::string _pem;
 };
