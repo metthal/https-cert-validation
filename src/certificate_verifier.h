@@ -110,7 +110,7 @@ public:
 		VerificationError verificationError(X509_STORE_CTX_get_error(certStore));
 
 		bool revoked = (verificationError.result == VerificationResult::Revoked);
-		std::cout << cert.getSubjectName() << " - " << (revoked ? "Revoked" : "OK") << std::endl;
+		std::cout << "\tCRL: " << cert.getSubjectName() << " - " << (revoked ? "Revoked" : "OK") << std::endl;
 		return 1;
 	}
 
@@ -128,7 +128,7 @@ public:
 			if (itr + 1 != end && !cert.getOcspResponder().empty())
 			{
 				OcspClient ocsp;
-				std::cout << "OCSP: " << (ocsp.isRevoked(cert, *(itr + 1)) ? "Revoked" : "OK") << std::endl;
+				std::cout << "\tOCSP: " << (ocsp.isRevoked(cert, *(itr + 1)) ? "Revoked" : "OK") << std::endl;
 			}
 			else if (!cert.getCrlDistributionPoint().empty())
 			{
@@ -165,7 +165,7 @@ public:
 		X509_STORE_CTX_init(certStore.get(), trustedStoreX509, sslSocket->getServerCertificateX509(), sslSocket->getCertificateChainX509());
 		X509_STORE_CTX_set_verify_cb(certStore.get(), getVerifyCallbackPtr());
 		X509_verify_cert(certStore.get());
-		std::cout << X509_verify_cert_error_string(X509_STORE_CTX_get_error(certStore.get())) << std::endl;
+		std::cout << "\tFinal: " << X509_verify_cert_error_string(X509_STORE_CTX_get_error(certStore.get())) << std::endl;
 	}
 
 protected:

@@ -3,32 +3,16 @@
 
 #include "certificate_verifier.h"
 #include "http_client.h"
+#include "kry_certificate_verifier.h"
 #include "ocsp_client.h"
 #include "ssl_socket.h"
 #include "ssl_suite.h"
-
-class MyCertVerifier : public CertificateVerifier<MyCertVerifier>
-{
-protected:
-	virtual bool onVerify(bool preverification, const Certificate& cert, const VerificationError& error) override
-	{
-		std::cout << "\tVerification started" << std::endl;
-		std::cout << "\t\tPreverification: " << std::boolalpha << preverification << std::endl;
-		std::cout << "\t\tSubject: " << cert.getSubjectName() << std::endl;
-		std::cout << "\t\tSubject CN: " << cert.getSubjectEntry("CN") << std::endl;
-		std::cout << "\t\tIssuer: " << cert.getIssuerName() << std::endl;
-		std::cout << "\t\tSerial number: " << cert.getSerialNumber() << std::endl;
-		std::cout << "\t\tCRL Distribution Point: " << cert.getCrlDistributionPoint() << std::endl;
-		std::cout << "\t\tError: " << error.message << std::endl;
-		return true;
-	}
-};
 
 int main()
 {
 	SslSuite ssl;
 
-	auto certVerifier = std::make_unique<MyCertVerifier>();
+	auto certVerifier = std::make_unique<KryCertficateVerifier>();
 
 	for (std::size_t i = 0; i < 100; ++i)
 	{
@@ -49,6 +33,9 @@ int main()
 			sock.getServerCertificate().saveToFile("certs/" + url + ".pem");
 
 			certVerifier->verify(&sock);
+
+			std::cout << "\tTLS: " << sock.getUsedTlsVersion() << std::endl;
+			std::cout << "\tCipher: " << sock.getUsedCipher() << std::endl;
 		}
 		catch (const SslHandshakeError& error)
 		{

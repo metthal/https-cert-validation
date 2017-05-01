@@ -23,6 +23,8 @@ public:
 
 	Certificate getServerCertificate() const;
 	std::vector<Certificate> getCertificateChain() const;
+	std::string getUsedTlsVersion() const;
+	std::string getUsedCipher() const;
 
 	X509* getServerCertificateX509() const;
 	STACK_OF(X509)* getCertificateChainX509() const;

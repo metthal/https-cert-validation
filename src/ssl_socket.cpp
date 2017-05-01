@@ -32,6 +32,16 @@ std::vector<Certificate> SslSocket::getCertificateChain() const
 	return result;
 }
 
+std::string SslSocket::getUsedTlsVersion() const
+{
+	return SSL_get_version(_impl);
+}
+
+std::string SslSocket::getUsedCipher() const
+{
+	return SSL_get_cipher(_impl);
+}
+
 X509* SslSocket::getServerCertificateX509() const
 {
 	auto chain = getCertificateChainX509();
