@@ -1,23 +1,38 @@
 #include "socket.h"
+#include "uri.h"
 #include "utils.h"
 
-Socket::Socket(const std::string& hostname, std::uint16_t port) : _hostname(hostname), _port(port), _ioService(), _socket(_ioService), _resolvedEndpoint()
+Socket::Socket(const Uri& uri, std::uint16_t port) : _uri(uri), _port(port), _bio(BIO_new(BIO_s_connect()))
 {
 }
 
-const std::string& Socket::getHostname() const
+Socket::~Socket()
 {
-	return _hostname;
+	BIO_free_all(_bio);
+}
+
+BIO* Socket::getBIO() const
+{
+	return _bio;
+}
+
+const Uri& Socket::getUri() const
+{
+	return _uri;
 }
 
 void Socket::connect()
 {
-	boost::system::error_code errorCode;
-	if (!_resolvedEndpoint)
-		_resolvedEndpoint = resolveHostname();
-	_socket.connect(_resolvedEndpoint.value(), errorCode);
+	auto hostname = _uri.getHostname();
+	auto port = _uri.getPort();
+	auto resource = _uri.getResource();
+	if (_port > 0)
+		port = numToStr(_port);
 
-	if (errorCode)
+	BIO_set_conn_hostname(_bio, hostname.c_str());
+	BIO_set_conn_port(_bio, port.c_str());
+
+	if (BIO_do_connect(_bio) != 1)
 		throw UnableToConnectError();
 
 	onConnect();
@@ -25,10 +40,9 @@ void Socket::connect()
 
 void Socket::reconnect()
 {
-	_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_type::shutdown_both);
-	_socket.close();
+	BIO_free_all(_bio);
+	_bio = BIO_new(BIO_s_connect());
 
-	_socket = boost::asio::ip::tcp::socket(_ioService);
 	connect();
 }
 
@@ -54,16 +68,8 @@ void Socket::onConnect()
 
 std::size_t Socket::write(const Span<const std::uint8_t>& data)
 {
-	boost::system::error_code errorCode;
-	std::size_t bytesWritten = _socket.write_some(
-			boost::asio::buffer(
-				data.getData(),
-				data.getSize()
-			),
-			errorCode
-		);
-
-	if (errorCode)
+	auto bytesWritten = BIO_write(_bio, data.getData(), data.getSize());
+	if (bytesWritten <= 0)
 		throw UnableToSendError();
 
 	return bytesWritten;
@@ -74,51 +80,10 @@ std::size_t Socket::read(std::size_t toRead, std::vector<std::uint8_t>& dataRead
 	dataRead.clear();
 	dataRead.resize(toRead);
 
-	boost::system::error_code errorCode;
-	std::size_t bytesRead = _socket.read_some(
-			boost::asio::buffer(
-				dataRead.data(),
-				dataRead.size()
-			),
-			errorCode
-		);
-
-	if (errorCode)
+	auto bytesRead = BIO_read(_bio, dataRead.data(), dataRead.size());
+	if (bytesRead <= 0)
 		throw UnableToReceiveError();
 
 	dataRead.resize(bytesRead);
 	return bytesRead;
-}
-
-boost::asio::ip::tcp::endpoint Socket::resolveHostname()
-{
-	boost::system::error_code errorCode;
-	auto address = boost::asio::ip::address::from_string(_hostname, errorCode);
-	if (!errorCode)
-		return { address, _port };
-
-	// No IP address parsable out of hostname, try to use DNS
-	boost::asio::ip::tcp::resolver dnsResolver(_ioService);
-	boost::asio::ip::tcp::resolver::query dnsQuery(_hostname, "");
-
-	std::vector<boost::asio::ip::tcp::endpoint> possibleEndpoints;
-	for (auto itr = dnsResolver.resolve(dnsQuery, errorCode), end = boost::asio::ip::tcp::resolver::iterator{}; !errorCode && itr != end; ++itr)
-		possibleEndpoints.push_back(*itr);
-
-	if (errorCode || possibleEndpoints.empty())
-		throw UnableToResolveHostnameError();
-
-	// Pick IPv4 over everything other
-	auto itr = std::find_if(possibleEndpoints.begin(), possibleEndpoints.end(),
-			[](const boost::asio::ip::tcp::endpoint& endpoint) {
-				return endpoint.address().is_v4();
-			});
-
-	boost::asio::ip::tcp::endpoint result;
-	if (itr != possibleEndpoints.end())
-		result = *itr;
-	else // Otherwise pick the first one available
-		result = possibleEndpoints.front();
-
-	return { result.address(), _port };
 }

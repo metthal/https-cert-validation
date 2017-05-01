@@ -10,13 +10,14 @@ public:
 	InvalidUriError() noexcept : Error("Invalid URI.") {}
 };
 
-class UriParser
+class Uri
 {
 public:
-	UriParser(const std::string& uri);
+	Uri(const std::string& uri);
 
 	const std::string& getProtocol() const;
 	const std::string& getHostname() const;
+	const std::string& getPort() const;
 	const std::string& getResource() const;
 
 private:
@@ -24,5 +25,6 @@ private:
 
 	std::string _protocol;
 	std::string _hostname;
+	std::string _port;
 	std::string _resource;
 };

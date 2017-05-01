@@ -2,24 +2,23 @@
 
 #include "ssl_socket.h"
 
-SslSocket::SslSocket(const std::string& hostname, std::uint16_t port) : Socket(hostname, port),
+SslSocket::SslSocket(const Uri& uri, std::uint16_t port) : Socket(uri, port),
 	_implTemplate(SSL_CTX_new(SSLv23_method()), &SSL_CTX_free),
-	_impl(nullptr, &SSL_free),
+	_impl(nullptr),
 	_connectionTry(0)
 {
 }
 
 Certificate SslSocket::getServerCertificate() const
 {
-	auto x509Peer = makeUnique(SSL_get_peer_certificate(_impl.get()), &X509_free);
+	auto x509Peer = makeUnique(SSL_get_peer_certificate(_impl), &X509_free);
 	return { x509Peer.get() };
 }
 
 std::vector<Certificate> SslSocket::getCertificateChain() const
 {
 	std::vector<Certificate> result;
-
-	auto x509Chain = SSL_get_peer_cert_chain(_impl.get());
+	auto x509Chain = SSL_get_peer_cert_chain(_impl);
 	if (x509Chain)
 	{
 		std::size_t certsCount = sk_X509_num(x509Chain);
@@ -41,7 +40,7 @@ X509* SslSocket::getServerCertificateX509() const
 
 STACK_OF(X509)* SslSocket::getCertificateChainX509() const
 {
-	return SSL_get_peer_cert_chain(_impl.get());
+	return SSL_get_peer_cert_chain(_impl);
 }
 
 X509_STORE* SslSocket::getTrustedStoreX509() const
@@ -68,9 +67,11 @@ void SslSocket::enableCrlVerification()
 
 void SslSocket::onConnect()
 {
-	_impl.reset(SSL_new(_implTemplate.get()));
-	SSL_set_tlsext_host_name(_impl.get(), _hostname.c_str());
-	SSL_set_fd(_impl.get(), _socket.native_handle());
+	auto sslBio = BIO_new_ssl(_implTemplate.get(), 1);
+	_bio = BIO_push(sslBio, _bio);
+
+	BIO_get_ssl(_bio, &_impl);
+	SSL_set_tlsext_host_name(_impl, _uri.getHostname().c_str());
 
 	switch (_connectionTry)
 	{
@@ -79,11 +80,11 @@ void SslSocket::onConnect()
 			break;
 		// On the second try, fallback to TLSv1.1
 		case 1:
-			SSL_set_options(_impl.get(), SSL_OP_NO_TLSv1_2);
+			SSL_set_options(_impl, SSL_OP_NO_TLSv1_2);
 			break;
 		// On the third try, fallback to TLSv1.0
 		case 2:
-			SSL_set_options(_impl.get(), SSL_OP_NO_TLSv1_2 | SSL_OP_NO_TLSv1_1);
+			SSL_set_options(_impl, SSL_OP_NO_TLSv1_2 | SSL_OP_NO_TLSv1_1);
 			break;
 		// On the fourth try just end abnormally
 		default:
@@ -92,10 +93,10 @@ void SslSocket::onConnect()
 
 	try
 	{
-		if (SSL_connect(_impl.get()) <= 0)
+		if (BIO_do_handshake(_bio) <= 0)
 			throw SslHandshakeError();
 
-		if (!makeUnique(SSL_get_peer_certificate(_impl.get()), &X509_free))
+		if (!makeUnique(SSL_get_peer_certificate(_impl), &X509_free))
 			throw SslHandshakeError();
 	}
 	catch (const SslHandshakeError&)

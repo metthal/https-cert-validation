@@ -17,10 +17,9 @@ public:
 class SslSocket : public Socket
 {
 	using SslContextType = std::unique_ptr<SSL_CTX, decltype(&SSL_CTX_free)>;
-	using SslType = std::unique_ptr<SSL, decltype(&SSL_free)>;
 
 public:
-	SslSocket(const std::string& hostname, std::uint16_t port);
+	SslSocket(const Uri& uri, std::uint16_t port = 0);
 
 	Certificate getServerCertificate() const;
 	std::vector<Certificate> getCertificateChain() const;
@@ -38,6 +37,6 @@ protected:
 
 private:
 	SslContextType _implTemplate;
-	SslType _impl;
+	SSL* _impl;
 	std::size_t _connectionTry;
 };

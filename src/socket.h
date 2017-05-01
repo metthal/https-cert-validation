@@ -1,11 +1,10 @@
 #pragma once
 
-#include <boost/asio.hpp>
-#include <boost/optional.hpp>
 #include <openssl/bio.h>
 
 #include "error.h"
 #include "span.h"
+#include "uri.h"
 
 class UnableToResolveHostnameError : public Error
 {
@@ -34,10 +33,11 @@ public:
 class Socket
 {
 public:
-	Socket(const std::string& hostname, std::uint16_t port);
-	virtual ~Socket() = default;
+	Socket(const Uri& uri, std::uint16_t port = 0);
+	virtual ~Socket();
 
-	const std::string& getHostname() const;
+	BIO* getBIO() const;
+	const Uri& getUri() const;
 
 	void connect();
 	void reconnect();
@@ -48,11 +48,8 @@ protected:
 	virtual void onConnect();
 	virtual std::size_t write(const Span<const std::uint8_t>& data);
 	virtual std::size_t read(std::size_t toRead, std::vector<std::uint8_t>& dataRead);
-	boost::asio::ip::tcp::endpoint resolveHostname();
 
-	std::string _hostname;
+	Uri _uri;
 	std::uint16_t _port;
-	boost::asio::io_service _ioService;
-	boost::asio::ip::tcp::socket _socket;
-	boost::optional<boost::asio::ip::tcp::endpoint> _resolvedEndpoint;
+	BIO* _bio;
 };

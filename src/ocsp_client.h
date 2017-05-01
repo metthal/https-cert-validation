@@ -2,7 +2,15 @@
 
 #include <string>
 
+#include "error.h"
+
 class Certificate;
+
+class OcspResponseError : public Error
+{
+public:
+	OcspResponseError() noexcept : Error("Failed to retrieve OCSP response.") {}
+};
 
 class OcspClient
 {

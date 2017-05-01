@@ -15,7 +15,6 @@
 #include "ocsp_client.h"
 #include "ssl_socket.h"
 #include "socket.h"
-#include "uri_parser.h"
 
 class UnknownVerificationResultError : public Error
 {
@@ -133,10 +132,9 @@ public:
 			}
 			else if (!cert.getCrlDistributionPoint().empty())
 			{
-				UriParser uriParser(cert.getCrlDistributionPoint());
-				HttpClient<Socket> crlDownloader(uriParser.getHostname(), 80);
-				crlDownloader.connect();
-				auto crlPem = crlDownloader.request(uriParser.getResource());
+				Uri uri(cert.getCrlDistributionPoint());
+				HttpClient crlDownloader(uri);
+				auto crlPem = crlDownloader.request(uri.getResource());
 
 				X509_CRL* crl = nullptr;
 				auto bio = makeUnique(BIO_new_mem_buf(crlPem.data(), crlPem.length() + 1), &BIO_free);

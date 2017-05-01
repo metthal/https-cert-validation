@@ -46,23 +46,7 @@ int main()
 			sock.useTrustStore("crocs-ca.pem");
 			sock.enableCrlVerification();
 			sock.connect();
-
 			sock.getServerCertificate().saveToFile("certs/" + url + ".pem");
-
-			const auto& chain = sock.getCertificateChain();
-			for (auto itr = chain.begin(), end = chain.end(); itr != end; ++itr)
-			{
-				if (itr + 1 == end)
-					break;
-
-				const auto& cert = *itr;
-				const auto& issuer = *(itr + 1);
-				if (!cert.getOcspResponder().empty())
-				{
-					OcspClient ocsp;
-					std::cout << "OCSP: " << cert.getSubjectName() << " " << std::boolalpha << ocsp.isRevoked(cert, issuer) << std::endl;
-				}
-			}
 
 			certVerifier->verify(&sock);
 		}
