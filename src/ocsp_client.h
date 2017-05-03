@@ -15,5 +15,5 @@ public:
 class OcspClient
 {
 public:
-	bool isRevoked(const Certificate& cert, const Certificate& issuer) const;
+	bool isRevoked(const Certificate* cert, const Certificate* issuer) const;
 };

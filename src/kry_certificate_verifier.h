@@ -5,5 +5,7 @@
 class KryCertficateVerifier : public CertificateVerifier<KryCertficateVerifier>
 {
 protected:
-	virtual bool onVerify(bool preverification, const Certificate& cert, const VerificationError& error) override;
+	virtual CertificateReport onVerify(bool preverification, Certificate* cert, const VerificationError& error) override;
+
+	std::pair<Rank, std::string> checkSubjectName(const std::string& name) const;
 };

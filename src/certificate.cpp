@@ -7,13 +7,20 @@
 #include "certificate.h"
 #include "utils.h"
 
-Certificate::Certificate() : _subjectName(), _issuerName(), _subjectEntries(), _issuerEntries(), _serialNumber(), _crlDistributionPoint(), _pem()
+Certificate::Certificate() : _impl(nullptr), _subjectName(), _issuerName(), _subjectEntries(), _issuerEntries(), _serialNumber(), _crlDistributionPoint(),
+	_ocspResponder(), _publicKeyAlgorithm(), _keyBits(0), _signatureAlgorithm(), _alternativeNames(), _isCA(false), _maxCAPathLength(0),
+	_keyUsage(0), _pem(), _revoked(false)
 {
 }
 
 Certificate::Certificate(X509* impl) : Certificate()
 {
 	load(impl);
+}
+
+void Certificate::setRevoked(bool set)
+{
+	_revoked = set;
 }
 
 const std::string& Certificate::getSubjectName() const
@@ -73,20 +80,73 @@ const std::vector<std::string>& Certificate::getAlterantiveNames() const
 	return _alternativeNames;
 }
 
+bool Certificate::isCA() const
+{
+	return _isCA;
+}
+
+std::size_t Certificate::getMaxCAPathLength() const
+{
+	return _maxCAPathLength;
+}
+
+KeyUsage Certificate::getKeyUsage() const
+{
+	return static_cast<KeyUsage>(_keyUsage);
+}
+
+std::string Certificate::getKeyUsageString() const
+{
+	std::vector<std::string> parts;
+	if (_keyUsage & KeyUsage::DigitalSignature)
+		parts.push_back("Digital Signature");
+
+	if (_keyUsage & KeyUsage::NonRepudiation)
+		parts.push_back("Non Repudiation");
+
+	if (_keyUsage & KeyUsage::KeyEncipherment)
+		parts.push_back("Key Encipherment");
+
+	if (_keyUsage & KeyUsage::DataEncipherment)
+		parts.push_back("Data Encipherment");
+
+	if (_keyUsage & KeyUsage::KeyAgreement)
+		parts.push_back("Key Agreement");
+
+	if (_keyUsage & KeyUsage::CertificateSigning)
+		parts.push_back("Certificate Signing");
+
+	if (_keyUsage & KeyUsage::CrlSigning)
+		parts.push_back("CRL Signing");
+
+	if (_keyUsage & KeyUsage::EncipherOnly)
+		parts.push_back("Encipher Only");
+
+	if (_keyUsage & KeyUsage::DecipherOnly)
+		parts.push_back("Decipher Only");
+
+	return join(parts.begin(), parts.end(), ", ");
+}
+
 const std::string& Certificate::getPEM() const
 {
 	return _pem;
 }
 
+bool Certificate::isRevoked() const
+{
+	return _revoked;
+}
+
 X509* Certificate::getX509() const
 {
-	auto bio = makeUnique(BIO_new_mem_buf(_pem.c_str(), _pem.length()), &BIO_free);
-	auto result = PEM_read_bio_X509(bio.get(), nullptr, nullptr, nullptr);
-	return result;
+	return _impl;
 }
 
 void Certificate::load(X509* impl)
 {
+	_impl = impl;
+
 	if (auto subjectName = X509_get_subject_name(impl))
 	{
 		_subjectName = CryptoStringType(X509_NAME_oneline(subjectName, nullptr, 0), &CRYPTO_free).get();
@@ -167,6 +227,40 @@ void Certificate::load(X509* impl)
 			}
 		}
 	}
+
+	if (auto constraint = reinterpret_cast<BASIC_CONSTRAINTS*>(X509_get_ext_d2i(impl, NID_basic_constraints, nullptr, nullptr)))
+	{
+		_isCA = constraint->ca != 0;
+		_maxCAPathLength = ASN1_INTEGER_get(constraint->pathlen);
+	}
+
+	if (auto keyUsage = reinterpret_cast<ASN1_BIT_STRING*>(X509_get_ext_d2i(impl, NID_key_usage, nullptr, nullptr)))
+	{
+		std::uint16_t flags = 0;
+		if (keyUsage->length > 1)
+			flags |= static_cast<std::uint16_t>(keyUsage->data[1]) << 8;
+		if (keyUsage->length > 0)
+			flags |= static_cast<std::uint16_t>(keyUsage->data[0]);
+
+		if (flags & X509v3_KU_DIGITAL_SIGNATURE)
+			_keyUsage |= KeyUsage::DigitalSignature;
+		if (flags & X509v3_KU_NON_REPUDIATION)
+			_keyUsage |= KeyUsage::NonRepudiation;
+		if (flags & X509v3_KU_KEY_ENCIPHERMENT)
+			_keyUsage |= KeyUsage::KeyEncipherment;
+		if (flags & X509v3_KU_DATA_ENCIPHERMENT)
+			_keyUsage |= KeyUsage::DataEncipherment;
+		if (flags & X509v3_KU_KEY_AGREEMENT)
+			_keyUsage |= KeyUsage::KeyAgreement;
+		if (flags & X509v3_KU_KEY_CERT_SIGN)
+			_keyUsage |= KeyUsage::CertificateSigning;
+		if (flags & X509v3_KU_CRL_SIGN)
+			_keyUsage |= KeyUsage::CrlSigning;
+		if (flags & X509v3_KU_ENCIPHER_ONLY)
+			_keyUsage |= KeyUsage::EncipherOnly;
+		if (flags & X509v3_KU_DECIPHER_ONLY)
+			_keyUsage |= KeyUsage::DecipherOnly;
+	}
 }
 
 std::map<std::string, std::string> Certificate::loadNameEntries(X509_NAME* name)
@@ -197,7 +291,7 @@ void Certificate::saveToFile(const std::string& filePath) const
 
 bool Certificate::operator==(const Certificate& cert) const
 {
-	return _issuerName == cert._issuerName && _serialNumber == cert._serialNumber;
+	return _subjectName == cert._subjectName && _issuerName == cert._issuerName && _serialNumber == cert._serialNumber;
 }
 
 bool Certificate::operator!=(const Certificate& cert) const

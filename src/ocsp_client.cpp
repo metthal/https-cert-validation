@@ -10,9 +10,9 @@
 /**
  * This method is insipred by `apps/ocsp.c`. A lot of code is just copied from it.
  */
-bool OcspClient::isRevoked(const Certificate& cert, const Certificate& issuer) const
+bool OcspClient::isRevoked(const Certificate* cert, const Certificate* issuer) const
 {
-	Uri uri(cert.getOcspResponder());
+	Uri uri(cert->getOcspResponder());
 
 	std::unique_ptr<Socket> socket;
 	if (uri.getProtocol() == "https")
@@ -23,12 +23,12 @@ bool OcspClient::isRevoked(const Certificate& cert, const Certificate& issuer) c
 	socket->connect();
 
 	// Obtain X509 structures out of our own internal certificate representation
-	auto subjectX509 = makeUnique(cert.getX509(), &X509_free);
-	auto issuerX509 = makeUnique(issuer.getX509(), &X509_free);
+	auto subjectX509 = cert->getX509();
+	auto issuerX509 = issuer->getX509();
 
 	// Create OCSP request and add our certificates to it
 	auto ocspRequest = makeUnique(OCSP_REQUEST_new(), &OCSP_REQUEST_free);
-	auto id = OCSP_cert_to_id(EVP_sha1(), subjectX509.get(), issuerX509.get());
+	auto id = OCSP_cert_to_id(EVP_sha1(), subjectX509, issuerX509);
 	OCSP_request_add0_id(ocspRequest.get(), id);
 
 	// Create OCSP request context and add to it `Host` HTTP header

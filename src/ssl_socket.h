@@ -21,7 +21,6 @@ class SslSocket : public Socket
 public:
 	SslSocket(const Uri& uri, std::uint16_t port = 0);
 
-	Certificate getServerCertificate() const;
 	std::vector<Certificate> getCertificateChain() const;
 	std::string getUsedTlsVersion() const;
 	std::string getUsedCipher() const;

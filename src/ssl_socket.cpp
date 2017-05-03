@@ -9,29 +9,6 @@ SslSocket::SslSocket(const Uri& uri, std::uint16_t port) : Socket(uri, port),
 {
 }
 
-Certificate SslSocket::getServerCertificate() const
-{
-	auto x509Peer = makeUnique(SSL_get_peer_certificate(_impl), &X509_free);
-	return { x509Peer.get() };
-}
-
-std::vector<Certificate> SslSocket::getCertificateChain() const
-{
-	std::vector<Certificate> result;
-	auto x509Chain = SSL_get_peer_cert_chain(_impl);
-	if (x509Chain)
-	{
-		std::size_t certsCount = sk_X509_num(x509Chain);
-		for (std::size_t i = 0; i < certsCount; ++i)
-		{
-			auto x509 = sk_X509_value(x509Chain, i);
-			result.emplace_back(x509);
-		}
-	}
-
-	return result;
-}
-
 std::string SslSocket::getUsedTlsVersion() const
 {
 	return SSL_get_version(_impl);

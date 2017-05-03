@@ -1,7 +1,10 @@
 #pragma once
 
+#include <algorithm>
 #include <functional>
 #include <iostream>
+#include <unordered_map>
+#include <unordered_set>
 
 #include <openssl/bio.h>
 #include <openssl/pem.h>
@@ -13,6 +16,7 @@
 #include "fn_ptr.h"
 #include "http_client.h"
 #include "ocsp_client.h"
+#include "report.h"
 #include "ssl_socket.h"
 #include "socket.h"
 
@@ -98,41 +102,68 @@ public:
 
 	static int verificationCallback(BaseCertificateVerifier* verifier, int preverifyOk, X509_STORE_CTX* certStore)
 	{
-		Certificate cert(certStore->current_cert);
 		VerificationError verificationError(X509_STORE_CTX_get_error(certStore));
 
-		return verifier->onVerify(preverifyOk == 1, cert, verificationError) ? 1 : 0;
-	}
+		auto cert = verifier->getCertificate(certStore->current_cert);
+		if (!verifier->_chain.empty())
+		{
+			auto itr = std::find_if(verifier->_chain.begin(), verifier->_chain.end(),
+					[&cert](auto itrCert) {
+						return itrCert->getSubjectName() == cert->getIssuerName();
+					});
+			if (itr != verifier->_chain.end())
+				verifier->_chain.insert(itr + 1, cert);
+		}
+		else
+			verifier->_chain.push_back(cert);
 
-	static int crlVerificationCallback(BaseCertificateVerifier* /*verifier*/, int /*preverifyOk*/, X509_STORE_CTX* certStore)
-	{
-		Certificate cert(certStore->current_cert);
-		VerificationError verificationError(X509_STORE_CTX_get_error(certStore));
-
-		bool revoked = (verificationError.result == VerificationResult::Revoked);
-		std::cout << "\tCRL: " << cert.getSubjectName() << " - " << (revoked ? "Revoked" : "OK") << std::endl;
+		verifier->_serverReport.addCertificateReport(verifier->onVerify(preverifyOk == 1, cert, verificationError));
 		return 1;
 	}
 
-	void verify(const SslSocket* sslSocket)
+	static int crlVerificationCallback(BaseCertificateVerifier* verifier, int /*preverifyOk*/, X509_STORE_CTX* certStore)
 	{
+		VerificationError verificationError(X509_STORE_CTX_get_error(certStore));
+
+		auto cert = verifier->getCertificate(certStore->current_cert);
+		if (!cert->isRevoked())
+			cert->setRevoked(verificationError.result == VerificationResult::Revoked);
+		return 1;
+	}
+
+	ServerReport verify(const SslSocket* sslSocket)
+	{
+		_serverReport.setServerName(sslSocket->getUri().getHostname());
+		_serverReport.setTlsVersion(sslSocket->getUsedTlsVersion());
+		_serverReport.setCipher(sslSocket->getUsedCipher());
+		_serverCert = sslSocket->getServerCertificateX509();
+
+		if (_serverReport.getTlsVersion() == "TLSv1.1")
+			_serverReport.addIssue(Rank::AlmostSecure, "tls_version", "TLSv1.1 used");
+		else if (_serverReport.getTlsVersion() != "TLSv1.2")
+			_serverReport.addIssue(Rank::Dangerous, "tls_version", "TLSv1.0 or older used");
+
 		auto trustedStoreX509 = sslSocket->getTrustedStoreX509();
 
 		// Try to download available CRLs
 		bool checkCrl = false;
-		auto chain = sslSocket->getCertificateChain();
-		for (auto itr = chain.begin(), end = chain.end(); itr != end; ++itr)
+		STACK_OF(X509)* chain = sslSocket->getCertificateChainX509();
+		std::size_t chainSize = sk_X509_num(chain);
+		for (std::size_t i = 0; i < chainSize; ++i)
 		{
-			const auto& cert = *itr;
+			auto cert = getCertificate(sk_X509_value(chain, i));
 
-			if (itr + 1 != end && !cert.getOcspResponder().empty())
+			if (i + 1 != chainSize && !cert->getOcspResponder().empty())
 			{
+				auto issuer = getCertificate(sk_X509_value(chain, i + 1));
+
 				OcspClient ocsp;
-				std::cout << "\tOCSP: " << (ocsp.isRevoked(cert, *(itr + 1)) ? "Revoked" : "OK") << std::endl;
+				if (!cert->isRevoked())
+					cert->setRevoked(ocsp.isRevoked(cert, issuer));
 			}
-			else if (!cert.getCrlDistributionPoint().empty())
+			else if (!cert->getCrlDistributionPoint().empty())
 			{
-				Uri uri(cert.getCrlDistributionPoint());
+				Uri uri(cert->getCrlDistributionPoint());
 				HttpClient crlDownloader(uri);
 				auto crlPem = crlDownloader.request(uri.getResource());
 
@@ -165,14 +196,30 @@ public:
 		X509_STORE_CTX_init(certStore.get(), trustedStoreX509, sslSocket->getServerCertificateX509(), sslSocket->getCertificateChainX509());
 		X509_STORE_CTX_set_verify_cb(certStore.get(), getVerifyCallbackPtr());
 		X509_verify_cert(certStore.get());
-		std::cout << "\tFinal: " << X509_verify_cert_error_string(X509_STORE_CTX_get_error(certStore.get())) << std::endl;
+
+		return _serverReport;
 	}
 
 protected:
-	virtual bool onVerify(bool preverification, const Certificate& cert, const VerificationError& error) = 0;
+	virtual CertificateReport onVerify(bool preverification, Certificate* cert, const VerificationError& error) = 0;
 
 	virtual VerifyFnPtr getVerifyCallbackPtr() = 0;
 	virtual VerifyFnPtr getCrlVerifyCallbackPtr() = 0;
+
+	ServerReport _serverReport;
+	X509* _serverCert;
+	std::unordered_map<X509*, Certificate> _certTable;
+	std::vector<Certificate*> _chain;
+
+private:
+	Certificate* getCertificate(X509* x509)
+	{
+		auto itr = _certTable.find(x509);
+		if (itr == _certTable.end())
+			std::tie(itr, std::ignore) = _certTable.emplace(x509, Certificate{x509});;
+
+		return &itr->second;
+	}
 };
 
 template <typename Tag>
