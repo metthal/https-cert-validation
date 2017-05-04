@@ -188,6 +188,7 @@ public:
 			// We need to create completely new X509_STORE_CTX here
 			auto crlCertStore = makeUnique(X509_STORE_CTX_new(), &X509_STORE_CTX_free);
 			X509_STORE_CTX_init(crlCertStore.get(), trustedStoreX509, sslSocket->getServerCertificateX509(), sslSocket->getCertificateChainX509());
+			X509_STORE_CTX_set_default(crlCertStore.get(), "ssl_client");
 			X509_STORE_CTX_set_verify_cb(crlCertStore.get(), getCrlVerifyCallbackPtr());
 			X509_VERIFY_PARAM_set_flags(X509_STORE_CTX_get0_param(crlCertStore.get()), X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
 			X509_verify_cert(crlCertStore.get());
@@ -195,6 +196,7 @@ public:
 
 		auto certStore = makeUnique(X509_STORE_CTX_new(), &X509_STORE_CTX_free);
 		X509_STORE_CTX_init(certStore.get(), trustedStoreX509, sslSocket->getServerCertificateX509(), sslSocket->getCertificateChainX509());
+		X509_STORE_CTX_set_default(certStore.get(), "ssl_client");
 		X509_STORE_CTX_set_verify_cb(certStore.get(), getVerifyCallbackPtr());
 		X509_verify_cert(certStore.get());
 
