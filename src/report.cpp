@@ -18,21 +18,14 @@ const Certificate& CertificateReport::getCertificate() const
 	return _cert;
 }
 
-const std::unordered_map<std::string, std::vector<std::string>>& CertificateReport::getIssues() const
+const std::vector<std::string>& CertificateReport::getIssues() const
 {
 	return _issues;
 }
 
 std::string CertificateReport::getIssuesString(const std::string& delim) const
 {
-	std::unordered_set<std::string> allIssues;
-	for (const auto& issues : mapGetValues(_issues))
-		for (const auto& issue : issues)
-			allIssues.insert(issue);
-
-	std::vector<std::string> result(allIssues.begin(), allIssues.end());
-	std::sort(result.begin(), result.end());
-	return join(result.begin(), result.end(), delim);
+	return join(_issues.begin(), _issues.end(), delim);
 }
 
 void ServerReport::setRank(Rank rank)
@@ -72,21 +65,17 @@ const std::vector<CertificateReport>& ServerReport::getCertificateReports() cons
 
 std::string ServerReport::getIssuesString(const std::string& delim) const
 {
-	std::unordered_set<std::string> allIssues;
-	for (const auto& attrIssue : _issues)
-		for (const auto& issue : attrIssue.second)
-			allIssues.insert(issue);
+	std::vector<std::string> result;
+
+	for (const auto& issue : _issues)
+		insertOrderedUnique(result, issue);
 
 	for (const auto& report : _reports)
 	{
-		const auto& issues = report.getIssues();
-		for (const auto& attrIssue : issues)
-			for (const auto& issue : attrIssue.second)
-				allIssues.insert(issue);
+		for (const auto& issue : report.getIssues())
+			insertOrderedUnique(result, issue);
 	}
 
-	std::vector<std::string> result(allIssues.begin(), allIssues.end());
-	std::sort(result.begin(), result.end());
 	return join(result.begin(), result.end(), delim);
 }
 

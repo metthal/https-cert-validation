@@ -9,6 +9,7 @@ std::string trim(std::string str);
 std::string bytesToHexString(const std::uint8_t* data, std::size_t size);
 bool containsCaseInsensitive(const std::string& str, const std::string& what);
 bool isSuffix(const std::string& str, const std::string& prefix);
+std::vector<std::string> split(const std::string& str, const std::string& delim);
 
 template <typename T, typename Manipulator = decltype(std::dec)>
 std::string numToStr(T value, Manipulator&& manip = std::dec)
@@ -45,13 +46,10 @@ std::string join(It first, It last, const std::string& delim)
 	return result;
 }
 
-template <typename Map>
-std::vector<typename Map::mapped_type> mapGetValues(const Map& map)
+template <typename Container, typename T>
+void insertOrderedUnique(Container& container, T&& value)
 {
-	std::vector<typename Map::mapped_type> values;
-	values.reserve(map.size());
-	for (const auto& kv : map)
-		values.push_back(kv.second);
-
-	return values;
+	auto itr = std::lower_bound(container.begin(), container.end(), value);
+	if (itr == container.end() || *itr != value)
+		container.insert(itr, std::forward<T>(value));
 }

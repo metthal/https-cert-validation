@@ -6,13 +6,13 @@ CertificateReport KryCertficateVerifier::onVerify(bool preverification, Certific
 
 	if (cert->isRevoked())
 	{
-		result.addIssue(Rank::Dangerous, "revocation_status", "Revoked");
+		result.addIssue(Rank::Dangerous, "Revoked");
 	}
 
 	if ((containsCaseInsensitive(cert->getPublicKeyAlgorithm(), "RSA") && cert->getKeyBits() < 1024)
 		|| (cert->getPublicKeyAlgorithm() == "id-ecPublicKey" && cert->getKeyBits() < 256))
 	{
-		result.addIssue(Rank::Dangerous, "key_size", "Weak key size");
+		result.addIssue(Rank::Dangerous, "Weak key size");
 	}
 
 	if (cert->getX509() == _serverCert)
@@ -23,52 +23,57 @@ CertificateReport KryCertficateVerifier::onVerify(bool preverification, Certific
 			{
 				auto res = checkSubjectName(name);
 				if (res.first > Rank::Secure)
-					result.addIssue(res.first, "alternative_names", res.second);
+					result.addIssue(res.first, res.second);
 			}
 		}
 		else
 		{
 			auto res = checkSubjectName(cert->getSubjectEntry("CN"));
 			if (res.first > Rank::Secure)
-				result.addIssue(res.first, "subject_name", res.second);
+				result.addIssue(res.first, res.second);
 		}
 	}
 
 	if (containsCaseInsensitive(cert->getSignatureAlgorithm(), "SHA1"))
 	{
-		result.addIssue(Rank::AlmostSecure, "signature_algorithm", "Use of SHA1");
+		result.addIssue(Rank::AlmostSecure, "Use of SHA1");
+	}
+
+	if (cert->getCrlDistributionPoint().empty() && cert->getOcspResponder().empty())
+	{
+		result.addIssue(Rank::Dangerous, "No revocation address available");
 	}
 
 	if (!preverification)
 	{
 		if (error.result == VerificationResult::CertificateExpired)
 		{
-			result.addIssue(Rank::Dangerous, "expiration", "Expired");
+			result.addIssue(Rank::Dangerous, "Expired");
 		}
 
 		if (error.result == VerificationResult::IssuerCertificateMissing)
 		{
-			result.addIssue(Rank::Dangerous, "issuer", "Issuer certificate unavailable");
+			result.addIssue(Rank::Dangerous, "Issuer certificate unavailable");
 		}
 
 		if (error.result == VerificationResult::SelfSignedInChain || error.result == VerificationResult::TopmostIsSelfSigned)
 		{
-			result.addIssue(Rank::Dangerous, "issuer", "Self-signed");
+			result.addIssue(Rank::Dangerous, "Self-signed");
 		}
 
 		if (error.result == VerificationResult::InvalidCA)
 		{
-			result.addIssue(Rank::Dangerous, "ca", "Non-CA certificate used as CA");
+			result.addIssue(Rank::PossiblyDangerous, "Non-CA certificate used as CA");
 		}
 
 		if (error.result == VerificationResult::SubtreeViolation)
 		{
-			result.addIssue(Rank::Dangerous, "name_constraint", "Violation of name constraint");
+			result.addIssue(Rank::PossiblyDangerous, "Violation of name constraint");
 		}
 
 		if (error.result == VerificationResult::InvalidPurpose)
 		{
-			result.addIssue(Rank::Dangerous, "key_usage", "Violation of key usage");
+			result.addIssue(Rank::PossiblyDangerous, "Violation of key usage");
 		}
 	}
 
@@ -77,12 +82,15 @@ CertificateReport KryCertficateVerifier::onVerify(bool preverification, Certific
 
 std::pair<Rank, std::string> KryCertficateVerifier::checkSubjectName(const std::string& name) const
 {
-	if (name == _serverReport.getServerName())
+	auto serverName =_serverReport.getServerName();
+	auto domains = split(serverName, ".");
+	domains[0] = "*";
+	auto wildcardName = join(domains.begin(), domains.end(), ".");
+
+	if (name == serverName)
 		return { Rank::Secure, "" };
-	else if (name == "*.minotaur.fi.muni.cz")
-		return { Rank::AlmostSecure, "CN for *.minotaur.fi.muni.cz" };
-	else if (isSuffix(_serverReport.getServerName(), name))
-		return { Rank::PossiblyDangerous, "CN for another subdomain at minotaur.fi.muni.cz" };
+	else if (name == wildcardName)
+		return { Rank::AlmostSecure, "Subject name is wildcarded" };
 	else
-		return { Rank::Dangerous, "CN mismatch" };
+		return { Rank::Dangerous, "Subject name mismatch" };
 }

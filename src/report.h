@@ -1,6 +1,6 @@
 #pragma once
 
-#include <unordered_map>
+#include <unordered_set>
 
 #include <boost/container/flat_map.hpp>
 #include <boost/optional.hpp>
@@ -25,22 +25,22 @@ public:
 
 	void setRank(Rank rank);
 
-	template <typename IssueSourceT, typename IssueT>
-	void addIssue(Rank rank, IssueSourceT&& issueSource, IssueT&& issue)
+	template <typename IssueT>
+	void addIssue(Rank rank, IssueT&& issue)
 	{
 		setRank(rank);
-		_issues[std::forward<IssueSourceT>(issueSource)].emplace_back(issue);
+		insertOrderedUnique(_issues, std::forward<IssueT>(issue));
 	}
 
 	Rank getRank() const;
 	const Certificate& getCertificate() const;
-	const std::unordered_map<std::string, std::vector<std::string>>& getIssues() const;
+	const std::vector<std::string>& getIssues() const;
 	std::string getIssuesString(const std::string& delim) const;
 
 private:
 	Rank _rank;
 	Certificate _cert;
-	std::unordered_map<std::string, std::vector<std::string>> _issues;
+	std::vector<std::string> _issues;
 };
 
 class ServerReport
@@ -76,11 +76,11 @@ public:
 		_reports.push_back(std::forward<ReportT>(report));
 	}
 
-	template <typename IssueSourceT, typename IssueT>
-	void addIssue(Rank rank, IssueSourceT&& issueSource, IssueT&& issue)
+	template <typename IssueT>
+	void addIssue(Rank rank, IssueT&& issue)
 	{
 		setRank(rank);
-		_issues[std::forward<IssueSourceT>(issueSource)].emplace_back(issue);
+		insertOrderedUnique(_issues, std::forward<IssueT>(issue));
 	}
 
 	const std::string& getServerName() const;
@@ -96,7 +96,7 @@ private:
 	std::string _tlsVersion;
 	std::string _cipher;
 	std::vector<CertificateReport> _reports;
-	std::unordered_map<std::string, std::vector<std::string>> _issues;
+	std::vector<std::string> _issues;
 };
 
 class Report

@@ -2,6 +2,7 @@
 #include <sstream>
 
 #include <boost/algorithm/string.hpp>
+#include <boost/tokenizer.hpp>
 
 #include "utils.h"
 
@@ -37,4 +38,11 @@ bool isSuffix(const std::string& suffix, const std::string& str)
 		return false;
 
 	return pos + suffix.length() == str.length();
+}
+
+std::vector<std::string> split(const std::string& str, const std::string& delim)
+{
+	boost::char_separator<char> sep(delim.c_str());
+	boost::tokenizer<decltype(sep)> tokens(str, sep);
+	return std::vector<std::string>(tokens.begin(), tokens.end());
 }

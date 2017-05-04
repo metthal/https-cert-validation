@@ -42,7 +42,14 @@ int main()
 	for (auto itr = reports.begin(), end = reports.end(); itr != end; ++itr)
 	{
 		const auto& report = *itr;
-		std::cout << report.getServerName() << ", " << report.getRank() << ", " << report.getIssuesString("/");
+		std::cout << report.getServerName() << ", " << report.getRank() << ", ";
+
+		auto issues = report.getIssuesString("/");
+		if (issues.empty())
+			std::cout << "OK";
+		else
+			std::cout << issues;
+
 		if (itr + 1 != end)
 			std::cout << std::endl;
 	}

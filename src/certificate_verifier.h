@@ -139,9 +139,9 @@ public:
 		_serverCert = sslSocket->getServerCertificateX509();
 
 		if (_serverReport.getTlsVersion() == "TLSv1.1")
-			_serverReport.addIssue(Rank::AlmostSecure, "tls_version", "TLSv1.1 used");
+			_serverReport.addIssue(Rank::AlmostSecure, "TLSv1.1 used");
 		else if (_serverReport.getTlsVersion() != "TLSv1.2")
-			_serverReport.addIssue(Rank::Dangerous, "tls_version", "TLSv1.0 or older used");
+			_serverReport.addIssue(Rank::Dangerous, "TLSv1.0 or older used");
 
 		auto trustedStoreX509 = sslSocket->getTrustedStoreX509();
 
