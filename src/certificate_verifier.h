@@ -168,10 +168,10 @@ public:
 				auto crlPem = crlDownloader.request(uri.getResource());
 
 				X509_CRL* crl = nullptr;
-				auto bio = makeUnique(BIO_new_mem_buf(crlPem.data(), crlPem.length() + 1), &BIO_free);
+				auto bio = makeUnique(BIO_new_mem_buf(const_cast<char*>(crlPem.data()), crlPem.length() + 1), &BIO_free);
 				if ((crl = PEM_read_bio_X509_CRL(bio.get(), nullptr, nullptr, nullptr)) == nullptr)
 				{
-					bio = makeUnique(BIO_new_mem_buf(crlPem.data(), crlPem.length() + 1), &BIO_free);
+					bio = makeUnique(BIO_new_mem_buf(const_cast<char*>(crlPem.data()), crlPem.length() + 1), &BIO_free);
 					crl = d2i_X509_CRL_bio(bio.get(), nullptr);
 					if (!crl)
 						continue;
@@ -179,6 +179,7 @@ public:
 
 				checkCrl = true;
 				X509_STORE_add_crl(trustedStoreX509, crl);
+				X509_CRL_free(crl);
 			}
 		}
 

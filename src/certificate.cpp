@@ -205,16 +205,16 @@ void Certificate::load(X509* impl)
 			_ocspResponder = sk_OPENSSL_STRING_value(ocspInfo.get(), 0);
 	}
 
-	if (auto pubkey = X509_get_pubkey(impl))
+	if (auto pubkey = makeUnique(X509_get_pubkey(impl), &EVP_PKEY_free))
 	{
-		_keyBits = EVP_PKEY_bits(pubkey);
+		_keyBits = EVP_PKEY_bits(pubkey.get());
 		_publicKeyAlgorithm = OBJ_nid2ln(OBJ_obj2nid(impl->cert_info->key->algor->algorithm));
 	}
 
 	_signatureAlgorithm = OBJ_nid2ln(OBJ_obj2nid(impl->sig_alg->algorithm));
 
 	// Inspired by `http://www.zedwood.com/article/c-openssl-parse-x509-certificate-pem`
-	if (auto names = reinterpret_cast<STACK_OF(GENERAL_NAME)*>(X509_get_ext_d2i(impl, NID_subject_alt_name, nullptr, nullptr)))
+	if (auto names = impl->altname)
 	{
 		std::size_t nameCount = sk_GENERAL_NAME_num(names);
 		for (std::size_t i = 0; i < nameCount; ++i)
@@ -228,13 +228,13 @@ void Certificate::load(X509* impl)
 		}
 	}
 
-	if (auto constraint = reinterpret_cast<BASIC_CONSTRAINTS*>(X509_get_ext_d2i(impl, NID_basic_constraints, nullptr, nullptr)))
+	if (auto constraint = makeUnique(reinterpret_cast<BASIC_CONSTRAINTS*>(X509_get_ext_d2i(impl, NID_basic_constraints, nullptr, nullptr)), &BASIC_CONSTRAINTS_free))
 	{
 		_isCA = constraint->ca != 0;
 		_maxCAPathLength = ASN1_INTEGER_get(constraint->pathlen);
 	}
 
-	if (auto keyUsage = reinterpret_cast<ASN1_BIT_STRING*>(X509_get_ext_d2i(impl, NID_key_usage, nullptr, nullptr)))
+	if (auto keyUsage = makeUnique(reinterpret_cast<ASN1_BIT_STRING*>(X509_get_ext_d2i(impl, NID_key_usage, nullptr, nullptr)), &ASN1_BIT_STRING_free))
 	{
 		std::uint16_t flags = 0;
 		if (keyUsage->length > 1)

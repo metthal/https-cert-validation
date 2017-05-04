@@ -35,7 +35,7 @@ bool OcspClient::isRevoked(const Certificate* cert, const Certificate* issuer) c
 	// There is no way to do it through OCSP request so we need to do it through context
 	// We need to associate OCSP request with the context after we set the `Host` HTTP header beacuse then this header
 	// is written to the packet after the body was written and that means malformed HTTP request
-	auto ocspRequestCtx = makeUnique(OCSP_sendreq_new(socket->getBIO(), uri.getResource().c_str(), nullptr, -1), &OCSP_REQ_CTX_free);
+	auto ocspRequestCtx = makeUnique(OCSP_sendreq_new(socket->getBIO(), const_cast<char*>(uri.getResource().c_str()), nullptr, -1), &OCSP_REQ_CTX_free);
 	OCSP_REQ_CTX_add1_header(ocspRequestCtx.get(), "Host", uri.getHostname().c_str());
 	OCSP_REQ_CTX_set1_req(ocspRequestCtx.get(), ocspRequest.get());
 
