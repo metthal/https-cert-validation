@@ -66,7 +66,7 @@ struct VerificationError
 				result = VerificationResult::SubtreeViolation;
 				break;
 			case X509_V_ERR_CERT_UNTRUSTED:
-				result = VerificationError::Unknown;
+				result = VerificationResult::Unknown;
 				break;
 			default:
 				throw UnknownVerificationResultError(x509error);
