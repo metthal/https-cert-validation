@@ -192,7 +192,7 @@ void Certificate::load(X509* impl)
 			}
 		}
 
-		sk_DIST_POINT_free(crlDistPoints);
+		sk_DIST_POINT_pop_free(crlDistPoints, DIST_POINT_free);
 	}
 
 	auto ocspInfo = makeUnique(X509_get1_ocsp(impl),
@@ -229,7 +229,7 @@ void Certificate::load(X509* impl)
 			}
 		}
 
-		sk_GENERAL_NAME_free(names);
+		sk_GENERAL_NAME_pop_free(names, GENERAL_NAME_free);
 	}
 
 	if (auto constraint = makeUnique(reinterpret_cast<BASIC_CONSTRAINTS*>(X509_get_ext_d2i(impl, NID_basic_constraints, nullptr, nullptr)), &BASIC_CONSTRAINTS_free))
