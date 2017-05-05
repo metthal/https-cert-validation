@@ -173,7 +173,7 @@ void Certificate::load(X509* impl)
 		_pem += std::string{pemReader.begin(), pemReader.begin() + bytesRead};
 	}
 
-	if (auto crlDistPoints = impl->crldp)
+	if (auto crlDistPoints = reinterpret_cast<STACK_OF(DIST_POINT)*>(X509_get_ext_d2i(impl, NID_crl_distribution_points, nullptr, nullptr)))
 	{
 		for (int i = 0; i < sk_DIST_POINT_num(crlDistPoints) && _crlDistributionPoint.empty(); ++i)
 		{
@@ -191,6 +191,8 @@ void Certificate::load(X509* impl)
 				_crlDistributionPoint = std::string(name->d.ia5->data, name->d.ia5->data + name->d.ia5->length);
 			}
 		}
+
+		sk_DIST_POINT_free(crlDistPoints);
 	}
 
 	auto ocspInfo = makeUnique(X509_get1_ocsp(impl),
@@ -214,7 +216,7 @@ void Certificate::load(X509* impl)
 	_signatureAlgorithm = OBJ_nid2ln(OBJ_obj2nid(impl->sig_alg->algorithm));
 
 	// Inspired by `http://www.zedwood.com/article/c-openssl-parse-x509-certificate-pem`
-	if (auto names = impl->altname)
+	if (auto names = reinterpret_cast<STACK_OF(GENERAL_NAME)*>(X509_get_ext_d2i(impl, NID_subject_alt_name, nullptr, nullptr)))
 	{
 		std::size_t nameCount = sk_GENERAL_NAME_num(names);
 		for (std::size_t i = 0; i < nameCount; ++i)
@@ -226,6 +228,8 @@ void Certificate::load(X509* impl)
 				_alternativeNames.emplace_back(ASN1_STRING_data(nameBuffer), ASN1_STRING_data(nameBuffer) + ASN1_STRING_length(nameBuffer));
 			}
 		}
+
+		sk_GENERAL_NAME_free(names);
 	}
 
 	if (auto constraint = makeUnique(reinterpret_cast<BASIC_CONSTRAINTS*>(X509_get_ext_d2i(impl, NID_basic_constraints, nullptr, nullptr)), &BASIC_CONSTRAINTS_free))
