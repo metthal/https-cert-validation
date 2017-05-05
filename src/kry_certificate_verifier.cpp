@@ -1,22 +1,26 @@
 #include "kry_certificate_verifier.h"
 
-CertificateReport KryCertficateVerifier::onVerify(bool preverification, Certificate* cert, const VerificationError& error)
+CertificateReport KryCertficateVerifier::onVerify(bool preverification, Certificate* cert, const VerificationError& error, std::size_t chainDepth)
 {
 	CertificateReport result(*cert);
 
+	// Revocation status
 	if (cert->isRevoked())
 	{
 		result.addIssue(Rank::Dangerous, "Revoked");
 	}
 
+	// Check key sizes
 	if ((containsCaseInsensitive(cert->getPublicKeyAlgorithm(), "RSA") && cert->getKeyBits() < 1024)
 		|| (cert->getPublicKeyAlgorithm() == "id-ecPublicKey" && cert->getKeyBits() < 256))
 	{
 		result.addIssue(Rank::Dangerous, "Weak key size");
 	}
 
-	if (cert->getX509() == _serverCert)
+	// Perform only for the server certificate
+	if (chainDepth == 0)
 	{
+		// Prefer altenative names
 		if (!cert->getAlterantiveNames().empty())
 		{
 			for (const auto& name : cert->getAlterantiveNames())
@@ -34,14 +38,18 @@ CertificateReport KryCertficateVerifier::onVerify(bool preverification, Certific
 		}
 	}
 
+	// Perform only for the server certificate or for non-root CA
+	if (chainDepth == 0 || chainDepth != _chainSize)
+	{
+		if (cert->getCrlDistributionPoint().empty() && cert->getOcspResponder().empty())
+		{
+			result.addIssue(Rank::PossiblyDangerous, "No revocation address available");
+		}
+	}
+
 	if (containsCaseInsensitive(cert->getSignatureAlgorithm(), "SHA1"))
 	{
 		result.addIssue(Rank::AlmostSecure, "Use of SHA1");
-	}
-
-	if (cert->getCrlDistributionPoint().empty() && cert->getOcspResponder().empty())
-	{
-		result.addIssue(Rank::Dangerous, "No revocation address available");
 	}
 
 	if (!preverification)
@@ -90,7 +98,7 @@ std::pair<Rank, std::string> KryCertficateVerifier::checkSubjectName(const std::
 	if (name == serverName)
 		return { Rank::Secure, "" };
 	else if (name == wildcardName)
-		return { Rank::AlmostSecure, "Subject name is wildcarded" };
+		return { Rank::PossiblyDangerous, "Subject name is wildcarded" };
 	else
 		return { Rank::Dangerous, "Subject name mismatch" };
 }

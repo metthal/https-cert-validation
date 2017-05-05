@@ -23,11 +23,7 @@ int main()
 			//sock.useDefaultTrustStore();
 			sock.useTrustStore("/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem");
 			sock.useTrustStore("crocs-ca.pem");
-			sock.enableCrlVerification();
 			sock.connect();
-
-			//Certificate cert(sock.getServerCertificateX509());
-			//cert.saveToFile("certs/" + url + ".pem");
 
 			KryCertficateVerifier certVerifier;
 			report.addServerReport(certVerifier.verify(&sock));
@@ -44,7 +40,7 @@ int main()
 		const auto& report = *itr;
 		std::cout << report.getServerName() << ", " << report.getRank() << ", ";
 
-		auto issues = report.getIssuesString("/");
+		auto issues = report.getIssuesString(" + ");
 		if (issues.empty())
 			std::cout << "OK";
 		else

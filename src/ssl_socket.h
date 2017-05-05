@@ -31,7 +31,6 @@ public:
 
 	void useDefaultTrustStore();
 	void useTrustStore(const std::string& store);
-	void enableCrlVerification();
 
 protected:
 	virtual void onConnect() override;

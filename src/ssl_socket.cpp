@@ -45,20 +45,13 @@ void SslSocket::useTrustStore(const std::string& store)
 	SSL_CTX_load_verify_locations(_implTemplate.get(), store.c_str(), nullptr);
 }
 
-void SslSocket::enableCrlVerification()
-{
-	auto verifyCrlParam = makeUnique(X509_VERIFY_PARAM_new(), &X509_VERIFY_PARAM_free);
-	X509_VERIFY_PARAM_set_flags(verifyCrlParam.get(), X509_V_FLAG_CRL_CHECK);
-	SSL_CTX_set1_param(_implTemplate.get(), verifyCrlParam.get());
-}
-
 void SslSocket::onConnect()
 {
 	auto sslBio = BIO_new_ssl(_implTemplate.get(), 1);
 	_bio = BIO_push(sslBio, _bio);
 
 	BIO_get_ssl(_bio, &_impl);
-	SSL_set_tlsext_host_name(_impl, _uri.getHostname().c_str());
+	SSL_set_tlsext_host_name(_impl, _uri.getHostname().c_str()); // SNI
 
 	switch (_connectionTry)
 	{

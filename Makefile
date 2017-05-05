@@ -1,5 +1,5 @@
 PROJECT=kry
-CXX=g++
+CXX=$(shell command -v g++-6.3 && echo "g++-6.3" || echo "g++")
 CXXFLAGS=-std=c++14 -Wall -Wextra
 LXXFLAGS=-lboost_system -lpthread -ldl -lssl -lcrypto
 
@@ -10,6 +10,8 @@ OBJECTS=$(patsubst src/%.cpp,$(BUILD_DIR)/%.o,$(SOURCES))
 
 RM=rm -rf
 MKDIR=mkdir -p
+
+all: release
 
 release: build
 

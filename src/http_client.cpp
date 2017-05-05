@@ -31,6 +31,7 @@ std::string HttpClient::request(const std::string& resource)
 		responseWriter << std::string{buffer.data(), buffer.data() + buffer.size()};
 	}
 
+	// Skip all headers and find empty line which marks the end of them
 	std::string line;
 	while (std::getline(responseWriter, line) && trim(line) != "");
 

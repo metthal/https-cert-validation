@@ -2,9 +2,7 @@
 
 #include <algorithm>
 #include <functional>
-#include <iostream>
 #include <unordered_map>
-#include <unordered_set>
 
 #include <openssl/bio.h>
 #include <openssl/pem.h>
@@ -19,78 +17,7 @@
 #include "report.h"
 #include "ssl_socket.h"
 #include "socket.h"
-
-class UnknownVerificationResultError : public Error
-{
-public:
-	UnknownVerificationResultError(int result) noexcept : Error("Unknown verification result '" + std::to_string(result) + "' found.") {}
-};
-
-enum class VerificationResult
-{
-	Ok,
-	CertificateExpired,
-	Revoked,
-	UnavailableCRL,
-	IssuerCertificateMissing,
-	UnableToVerifyServerCertificate,
-	TopmostIsSelfSigned,
-	InvalidPurpose,
-	InvalidCA,
-	SelfSignedInChain,
-	SubtreeViolation,
-	Unknown
-};
-
-struct VerificationError
-{
-	VerificationError(int x509error)
-	{
-		switch (x509error)
-		{
-			case X509_V_OK:
-				result = VerificationResult::Ok;
-				break;
-			case X509_V_ERR_CERT_HAS_EXPIRED:
-				result = VerificationResult::CertificateExpired;
-				break;
-			case X509_V_ERR_CERT_REVOKED:
-				result = VerificationResult::Revoked;
-				break;
-			case X509_V_ERR_UNABLE_TO_GET_CRL:
-				result = VerificationResult::UnavailableCRL;
-				break;
-			case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY:
-				result = VerificationResult::IssuerCertificateMissing;
-				break;
-			case X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE:
-				result = VerificationResult::UnableToVerifyServerCertificate;
-				break;
-			case X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT:
-				result = VerificationResult::TopmostIsSelfSigned;
-				break;
-			case X509_V_ERR_INVALID_PURPOSE:
-				result = VerificationResult::InvalidPurpose;
-				break;
-			case X509_V_ERR_INVALID_CA:
-				result = VerificationResult::InvalidCA;
-				break;
-			case X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN:
-				result = VerificationResult::SelfSignedInChain;
-				break;
-			case X509_V_ERR_PERMITTED_VIOLATION:
-				result = VerificationResult::SubtreeViolation;
-				break;
-			default:
-				throw UnknownVerificationResultError(x509error);
-		}
-
-		message = X509_verify_cert_error_string(x509error);
-	}
-
-	VerificationResult result;
-	std::string message;
-};
+#include "verification_error.h"
 
 class BaseCertificateVerifier
 {
@@ -104,20 +31,18 @@ public:
 	{
 		VerificationError verificationError(X509_STORE_CTX_get_error(certStore));
 
-		auto cert = verifier->getCertificate(certStore->current_cert);
-		if (!verifier->_chain.empty())
+		// Determine the depth of the current certificate
+		std::size_t chainSize = sk_X509_num(certStore->chain);
+		std::size_t depth;
+		for (depth = 0; depth < chainSize; ++depth)
 		{
-			auto itr = std::find_if(verifier->_chain.begin(), verifier->_chain.end(),
-					[&cert](auto itrCert) {
-						return itrCert->getSubjectName() == cert->getIssuerName();
-					});
-			if (itr != verifier->_chain.end())
-				verifier->_chain.insert(itr + 1, cert);
+			auto x509 = sk_X509_value(certStore->chain, depth);
+			if (x509 == certStore->current_cert)
+				break;
 		}
-		else
-			verifier->_chain.push_back(cert);
 
-		verifier->_serverReport.addCertificateReport(verifier->onVerify(preverifyOk == 1, cert, verificationError));
+		auto cert = verifier->getCertificate(certStore->current_cert);
+		verifier->_serverReport.addCertificateReport(verifier->onVerify(preverifyOk == 1, cert, verificationError, depth));
 		return 1;
 	}
 
@@ -136,7 +61,6 @@ public:
 		_serverReport.setServerName(sslSocket->getUri().getHostname());
 		_serverReport.setTlsVersion(sslSocket->getUsedTlsVersion());
 		_serverReport.setCipher(sslSocket->getUsedCipher());
-		_serverCert = sslSocket->getServerCertificateX509();
 
 		if (_serverReport.getTlsVersion() == "TLSv1.1")
 			_serverReport.addIssue(Rank::AlmostSecure, "TLSv1.1 used");
@@ -148,12 +72,13 @@ public:
 		// Try to download available CRLs
 		bool checkCrl = false;
 		STACK_OF(X509)* chain = sslSocket->getCertificateChainX509();
-		std::size_t chainSize = sk_X509_num(chain);
-		for (std::size_t i = 0; i < chainSize; ++i)
+		_chainSize = sk_X509_num(chain);
+		for (std::size_t i = 0; i < _chainSize; ++i)
 		{
 			auto cert = getCertificate(sk_X509_value(chain, i));
 
-			if (i + 1 != chainSize && !cert->getOcspResponder().empty())
+			// Prefer OCSP over CRL
+			if (i + 1 != _chainSize && !cert->getOcspResponder().empty())
 			{
 				auto issuer = getCertificate(sk_X509_value(chain, i + 1));
 
@@ -167,6 +92,7 @@ public:
 				HttpClient crlDownloader(uri);
 				auto crlPem = crlDownloader.request(uri.getResource());
 
+				// Try PEM as first and if it fails try DER
 				X509_CRL* crl = nullptr;
 				auto bio = makeUnique(BIO_new_mem_buf(const_cast<char*>(crlPem.data()), crlPem.length() + 1), &BIO_free);
 				if ((crl = PEM_read_bio_X509_CRL(bio.get(), nullptr, nullptr, nullptr)) == nullptr)
@@ -204,19 +130,19 @@ public:
 	}
 
 protected:
-	virtual CertificateReport onVerify(bool preverification, Certificate* cert, const VerificationError& error) = 0;
+	virtual CertificateReport onVerify(bool preverification, Certificate* cert, const VerificationError& error, std::size_t chainDepth) = 0;
 
 	virtual VerifyFnPtr getVerifyCallbackPtr() = 0;
 	virtual VerifyFnPtr getCrlVerifyCallbackPtr() = 0;
 
 	ServerReport _serverReport;
-	X509* _serverCert;
+	std::size_t _chainSize;
 	std::unordered_map<X509*, Certificate> _certTable;
-	std::vector<Certificate*> _chain;
 
 private:
 	Certificate* getCertificate(X509* x509)
 	{
+		// Mapping of X509 certificates to Certificate instances
 		auto itr = _certTable.find(x509);
 		if (itr == _certTable.end())
 			std::tie(itr, std::ignore) = _certTable.emplace(x509, Certificate{x509});;
