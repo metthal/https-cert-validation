@@ -1,5 +1,5 @@
 PROJECT=kry
-CXX=$(shell command -v g++-6.3 && echo "g++-6.3" || echo "g++")
+CXX=$(shell command -v g++-6.3 || echo "g++")
 CXXFLAGS=-std=c++14 -Wall -Wextra
 LXXFLAGS=-lboost_system -lpthread -ldl -lssl -lcrypto
 
